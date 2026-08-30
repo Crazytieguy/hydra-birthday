@@ -159,7 +159,7 @@ function ClaimForm({
         </h1>
         <p className="text-muted-foreground">
           {invite.kind === 'new'
-            ? 'Tap join and this browser becomes your ticket in. No password, nothing to remember.'
+            ? 'Tap join to get started.'
             : `This link signs this device in as ${invite.name}.`}
         </p>
       </div>
