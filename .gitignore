@@ -19,3 +19,4 @@ todos.json
 CLAUDE.local.md
 .playwright-cli/
 scratch/
+.env*

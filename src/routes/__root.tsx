@@ -32,7 +32,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
       { title: 'Hydra Birthday' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+    ],
   }),
   shellComponent: RootDocument,
 })
