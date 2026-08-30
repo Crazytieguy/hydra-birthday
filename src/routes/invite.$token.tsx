@@ -241,7 +241,7 @@ function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
   return (
     <Screen
       title="This link was already used"
-      description="Invite links work once. If you joined on another device or browser, ask for a new link."
+      description="Invite links work once. If you joined on another phone or browser, open the site there and tap Use another device to get a link for this one. If you can't, ask for a new link."
     />
   )
 }
