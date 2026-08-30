@@ -10,8 +10,6 @@ import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
 import appCss from '../styles.css?url'
-import { ModeToggle } from '@/components/mode-toggle'
-import { ThemeProvider } from '@/components/theme-provider'
 import { readSessionToken } from '@/lib/session'
 
 interface RouterContext {
@@ -42,21 +40,17 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    // The theme script sets class/style on <html> before hydration.
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body className="min-h-dvh">
-        <ThemeProvider>
-          <header className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-            <Link to="/" className="font-semibold tracking-tight">
-              Hydra Birthday
-            </Link>
-            <ModeToggle />
-          </header>
-          <main className="mx-auto max-w-2xl px-4 pb-16">{children}</main>
-        </ThemeProvider>
+        <header className="mx-auto flex h-14 max-w-2xl items-center px-4">
+          <Link to="/" className="font-semibold tracking-tight">
+            Hydra Birthday
+          </Link>
+        </header>
+        <main className="mx-auto max-w-2xl px-4 pb-16">{children}</main>
         <TanStackDevtools
           config={{ position: 'bottom-right' }}
           plugins={[

@@ -24,6 +24,10 @@ There is no sign-up. Guests enter through one-time invite links (`/invite/<token
 
 Mint links with `bun run invite Alice Bob` (`--prod`, `--admin`, `--file names.txt`; prints `name<TAB>url`) or on `/admin`. The invite page never consumes a link on render (link previews must not burn them); only the Join mutation does.
 
+## Copy
+
+Every user-facing string (routes, components, error messages) goes through the `unslop` skill (`.claude/skills/unslop/SKILL.md`) before it ships, and the user reviews new or changed copy before it goes live: don't push copy changes to `main` until they've approved them. Present copy for review as an artifact, grouped by screen, with the previous wording next to anything that changed.
+
 ## Deploy
 
 Pushes to `main` deploy to production: Vercel runs `npx convex deploy --cmd 'npm run build'` (`vercel.json`). `bun run wizard` checks the whole chain (GitHub ↔ Vercel ↔ Convex ↔ DNS) and walks through the one manual step (Namecheap CNAME).
