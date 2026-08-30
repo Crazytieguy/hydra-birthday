@@ -10,7 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { CopyButton } from '@/components/copy-button'
-import { useMe, useSessionMutation } from '@/lib/guest'
+import { ErrorText } from '@/components/screens'
+import { useMe, useSessionAction } from '@/lib/guest'
 import { inviteUrl } from '@/lib/invites'
 
 export const Route = createFileRoute('/_guest/')({ component: Home })
@@ -36,9 +37,13 @@ function Home() {
 }
 
 function DeviceLinkCard() {
-  const createForSelf = useSessionMutation(api.invites.createForSelf)
+  const createForSelf = useSessionAction(api.invites.createForSelf)
   const [link, setLink] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+
+  async function create() {
+    const minted = await createForSelf.run({})
+    if (minted) setLink(inviteUrl(minted.token))
+  }
 
   return (
     <Card>
@@ -60,20 +65,13 @@ function DeviceLinkCard() {
         ) : (
           <Button
             variant="secondary"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true)
-              try {
-                const { token } = await createForSelf({})
-                setLink(inviteUrl(token))
-              } finally {
-                setBusy(false)
-              }
-            }}
+            disabled={createForSelf.busy}
+            onClick={() => void create()}
           >
             Create link
           </Button>
         )}
+        <ErrorText message={createForSelf.error} />
       </CardContent>
     </Card>
   )

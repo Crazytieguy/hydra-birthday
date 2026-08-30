@@ -6,33 +6,22 @@ import { ScriptOnce } from '@tanstack/react-router'
 
 type Theme = 'dark' | 'light' | 'system'
 
-type ThemeProviderProps = {
-  children: React.ReactNode
-  defaultTheme?: Theme
-  storageKey?: string
-}
+const STORAGE_KEY = 'theme'
+const DEFAULT_THEME: Theme = 'system'
+// Keep in sync with `applyTheme` below.
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t!=='light'&&t!=='dark'&&t!=='system'){t="${DEFAULT_THEME}"}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
 
-type ThemeProviderState = {
-  theme: Theme
-  setTheme: (theme: Theme) => void
-}
+const ThemeContext = createContext<(theme: Theme) => void>(() => {})
 
-const ThemeProviderContext = createContext<ThemeProviderState>({
-  theme: 'system',
-  setTheme: () => {},
-})
-
-function getThemeScript(storageKey: string, defaultTheme: Theme) {
-  const key = JSON.stringify(storageKey)
-  const fallback = JSON.stringify(defaultTheme)
-  return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
-}
-
-function readStored(storageKey: string): string | null {
+// Storage may be blocked (or absent during SSR); fall back to the default.
+function readStoredTheme(): Theme {
   try {
-    return localStorage.getItem(storageKey)
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === 'light' || stored === 'dark' || stored === 'system'
+      ? stored
+      : DEFAULT_THEME
   } catch {
-    return null
+    return DEFAULT_THEME
   }
 }
 
@@ -49,40 +38,22 @@ function applyTheme(theme: Theme) {
   root.style.colorScheme = resolved
 }
 
-export function ThemeProvider({
-  children,
-  defaultTheme = 'system',
-  storageKey = 'theme',
-}: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(defaultTheme)
-  const [mounted, setMounted] = useState(false)
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme)
+
+  useEffect(() => applyTheme(theme), [theme])
 
   useEffect(() => {
-    const stored = readStored(storageKey)
-    setThemeState(
-      stored === 'light' || stored === 'dark' || stored === 'system'
-        ? stored
-        : defaultTheme,
-    )
-    setMounted(true)
-  }, [defaultTheme, storageKey])
-
-  useEffect(() => {
-    if (!mounted) return
-    applyTheme(theme)
-  }, [theme, mounted])
-
-  useEffect(() => {
-    if (!mounted || theme !== 'system') return
+    if (theme !== 'system') return
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const onChange = () => applyTheme('system')
     media.addEventListener('change', onChange)
     return () => media.removeEventListener('change', onChange)
-  }, [theme, mounted])
+  }, [theme])
 
   const setTheme = (next: Theme) => {
     try {
-      localStorage.setItem(storageKey, next)
+      localStorage.setItem(STORAGE_KEY, next)
     } catch {
       // Storage blocked: the choice lasts for this page view only.
     }
@@ -90,13 +61,13 @@ export function ThemeProvider({
   }
 
   return (
-    <ThemeProviderContext value={{ theme, setTheme }}>
-      <ScriptOnce>{getThemeScript(storageKey, defaultTheme)}</ScriptOnce>
+    <ThemeContext value={setTheme}>
+      <ScriptOnce>{THEME_SCRIPT}</ScriptOnce>
       {children}
-    </ThemeProviderContext>
+    </ThemeContext>
   )
 }
 
-export function useTheme() {
-  return useContext(ThemeProviderContext)
+export function useSetTheme() {
+  return useContext(ThemeContext)
 }

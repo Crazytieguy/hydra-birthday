@@ -1,3 +1,4 @@
-export function inviteUrl(token: string): string {
-  return `${window.location.origin}/invite/${token}`
-}
+export const invitePath = (token: string) => `/invite/${token}`
+
+export const inviteUrl = (token: string) =>
+  `${window.location.origin}${invitePath(token)}`

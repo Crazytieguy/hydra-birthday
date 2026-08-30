@@ -11,12 +11,15 @@ import { createInterface } from 'node:readline/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const PROJECT = 'hydra-birthday'
-const GITHUB_REPO = 'Crazytieguy/hydra-birthday'
-const VERCEL_SCOPE = 'crazytieguys-projects'
-const DOMAIN = 'hydra-birthday.code-bloom.app'
-const APEX = 'code-bloom.app'
-const CONVEX_TEAM_ID = 131507
+import {
+  APEX,
+  CONVEX_TEAM_ID,
+  DOMAIN,
+  GITHUB_REPO,
+  PROJECT,
+  VERCEL_SCOPE,
+} from './config'
+
 const NAMECHEAP_DNS_URL = `https://ap.www.namecheap.com/Domains/DomainControlPanel/${APEX}/advancedns`
 
 const ok = (msg: string) => console.log(`  ✔ ${msg}`)
@@ -46,14 +49,10 @@ function must(cmd: string, args: string[], input?: string) {
   }
   return result.out
 }
-function vercelApi<T>(path: string): T | null {
-  const result = run('vercel', ['api', path, '--scope', VERCEL_SCOPE])
-  if (result.code !== 0) return null
-  try {
-    return JSON.parse(result.out) as T
-  } catch {
-    return null
-  }
+// A check that cannot be evaluated is an error, never a "missing" result —
+// otherwise a flaky call would trigger the fix step on every run.
+function vercelApi<T>(path: string): T {
+  return JSON.parse(must('vercel', ['api', path, '--scope', VERCEL_SCOPE])) as T
 }
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const open = (url: string) => run('open', [url])
@@ -108,8 +107,7 @@ async function main() {
     projectId: string
   }
   type Project = { id: string; link?: { repo?: string; org?: string } | null }
-  let project = vercelApi<Project>(`/v9/projects/${projectJson.projectId}`)
-  if (!project) throw new Error('could not read the Vercel project')
+  const project = vercelApi<Project>(`/v9/projects/${projectJson.projectId}`)
   ok(`project ${PROJECT} (${project.id})`)
   if (!project.link?.repo) {
     must('vercel', [
@@ -121,14 +119,12 @@ async function main() {
       VERCEL_SCOPE,
     ])
     did(`connected ${GITHUB_REPO} for auto-deploys`)
-    project =
-      vercelApi<Project>(`/v9/projects/${projectJson.projectId}`) ?? project
   } else {
     ok(`git: ${project.link.org}/${project.link.repo} → auto-deploys on push`)
   }
 
   step('Convex deploy keys on Vercel')
-  const envs = sh('vercel', ['env', 'ls', '--scope', VERCEL_SCOPE])
+  const envs = must('vercel', ['env', 'ls', '--scope', VERCEL_SCOPE])
   const hasKey = (env: string) =>
     envs
       .split('\n')
@@ -191,11 +187,14 @@ async function main() {
   const latest = () =>
     vercelApi<Deployments>(
       `/v6/deployments?projectId=${project.id}&target=production&limit=1`,
-    )?.deployments[0]
+    ).deployments.at(0)
   let deployment = latest()
-  if (!deployment) {
+  // Re-runs converge: a failed build is redeployed from this checkout.
+  if (!deployment || ['ERROR', 'CANCELED'].includes(deployment.state)) {
     did(
-      'no production deployment yet — deploying from this checkout (later pushes to main deploy automatically)',
+      deployment
+        ? `latest production deployment is ${deployment.state} — redeploying from this checkout`
+        : 'no production deployment yet — deploying from this checkout (later pushes to main deploy automatically)',
     )
     must('vercel', ['deploy', '--prod', '--yes', '--scope', VERCEL_SCOPE])
     deployment = latest()
@@ -210,15 +209,15 @@ async function main() {
   }
   if (!deployment) throw new Error('no deployment found after deploying')
   if (deployment.state !== 'READY') {
-    bad(`latest production deployment is ${deployment.state}`)
+    bad(`production deployment is ${deployment.state}`)
     if (deployment.inspectorUrl) open(deployment.inspectorUrl)
     throw new Error(
-      'fix the build (logs opened in the browser), then re-run the wizard',
+      'fix the build (logs opened in the browser), then re-run the wizard to redeploy',
     )
   }
   type Domains = { domains: Array<{ name: string; verified: boolean }> }
   const domains = () =>
-    vercelApi<Domains>(`/v9/projects/${project.id}/domains`)?.domains ?? []
+    vercelApi<Domains>(`/v9/projects/${project.id}/domains`).domains
   const vercelHost = domains().find((d) => d.name.endsWith('.vercel.app'))?.name
   ok(`production deployment READY: https://${vercelHost ?? deployment.url}`)
 
@@ -264,10 +263,10 @@ async function main() {
   ])
   const target = cnames[0] ? stripDot(cnames[0].value) : 'cname.vercel-dns.com'
   const host = cnames[0]?.name ?? DOMAIN.replace(`.${APEX}`, '')
-  const resolves = () =>
-    accepted.has(stripDot(sh('dig', ['+short', 'CNAME', DOMAIN])))
+  const currentCname = () => stripDot(must('dig', ['+short', 'CNAME', DOMAIN]))
+  const resolves = () => accepted.has(currentCname())
   if (resolves()) {
-    ok(`${DOMAIN} → ${stripDot(sh('dig', ['+short', 'CNAME', DOMAIN]))}`)
+    ok(`${DOMAIN} → ${currentCname()}`)
   } else {
     bad(`${DOMAIN} does not point at Vercel yet`)
     console.log(`

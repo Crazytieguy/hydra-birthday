@@ -5,12 +5,13 @@ import type { Id } from './_generated/dataModel'
 import {
   adminMutation,
   adminQuery,
+  findSessionByHash,
   findSessionUser,
   sessionMutation,
 } from './lib/auth'
+import { collapseWhitespace, normalizeName } from './lib/names'
 import { deleteSessions, insertSession } from './lib/sessions'
 import { MIN_SESSION_TOKEN_LENGTH, hashToken, newToken } from './lib/tokens'
-import { normalizeName } from './users'
 
 async function findInvite(ctx: QueryCtx, token: string) {
   const tokenHash = await hashToken(token)
@@ -23,7 +24,8 @@ async function findInvite(ctx: QueryCtx, token: string) {
 // What an invite page shows before the guest taps "Join". Public by design:
 // the token itself is the secret. Reading never consumes the invite, so link
 // previews (Signal, WhatsApp, Partiful) can't burn it. `sessionToken` (the
-// browser's current cookie, if any) only serves to recognise the link's owner.
+// browser's current cookie, if any) identifies the viewer so the page can say
+// who they already are and recognise a link they own.
 export const peek = query({
   args: { token: v.string(), sessionToken: v.optional(v.string()) },
   handler: async (ctx, { token, sessionToken }) => {
@@ -32,12 +34,15 @@ export const peek = query({
     const viewer = sessionToken
       ? await findSessionUser(ctx, sessionToken)
       : null
+    const isViewer = (userId: Id<'users'> | undefined) =>
+      viewer !== null && viewer._id === userId
     if (invite.claimedAt !== undefined) {
       return {
         status: 'claimed' as const,
-        mine: viewer !== null && viewer.user._id === invite.claimedByUserId,
+        mine: isViewer(invite.claimedByUserId),
       }
     }
+    const viewerInfo = viewer && { name: viewer.name }
     if (invite.forUserId) {
       const user = await ctx.db.get('users', invite.forUserId)
       if (!user) return { status: 'invalid' as const }
@@ -45,13 +50,15 @@ export const peek = query({
         status: 'available' as const,
         kind: 'existing' as const,
         name: user.name,
-        mine: viewer !== null && viewer.user._id === user._id,
+        mine: isViewer(user._id),
+        viewer: viewerInfo,
       }
     }
     return {
       status: 'available' as const,
       kind: 'new' as const,
-      label: invite.label ?? null,
+      label: invite.label,
+      viewer: viewerInfo,
     }
   },
 })
@@ -78,12 +85,9 @@ export const claim = mutation({
       if (invite.claimedSessionTokenHash === tokenHash) return null
       throw new ConvexError({ code: 'INVITE_CLAIMED' as const })
     }
-    const collision = await ctx.db
-      .query('sessions')
-      .withIndex('by_tokenHash', (q) => q.eq('tokenHash', tokenHash))
-      .unique()
-    if (collision)
+    if (await findSessionByHash(ctx, tokenHash)) {
       throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
+    }
 
     let userId: Id<'users'>
     if (invite.forUserId) {
@@ -93,7 +97,7 @@ export const claim = mutation({
       if (invite.replacesSessions) await deleteSessions(ctx, userId)
     } else {
       userId = await ctx.db.insert('users', {
-        name: normalizeName(name ?? invite.label ?? ''),
+        name: normalizeName(name ?? invite.label),
         isAdmin: invite.grantsAdmin === true,
       })
     }
@@ -113,6 +117,7 @@ const mintArgs = {
   grantsAdmin: v.optional(v.boolean()),
 }
 
+// One invite per non-blank label. The tokens exist in plaintext only here.
 async function mint(
   ctx: MutationCtx,
   args: {
@@ -123,7 +128,7 @@ async function mint(
 ) {
   const minted: Array<{ label: string; token: string }> = []
   for (const raw of args.labels) {
-    const label = raw.trim().replace(/\s+/g, ' ')
+    const label = collapseWhitespace(raw)
     if (!label) continue
     const token = newToken()
     await ctx.db.insert('invites', {
@@ -137,7 +142,6 @@ async function mint(
   return minted
 }
 
-// Admin page: one invite per label. The tokens are shown once, right here.
 export const create = adminMutation({
   args: mintArgs,
   handler: async (ctx, args) =>
@@ -195,30 +199,25 @@ export const createForUser = adminMutation({
     await mintForUser(ctx, userId, ctx.user._id, true),
 })
 
+// Reads only the invites table (the admin page joins names from users.list),
+// so renames and admin toggles don't re-run it.
 export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const invites = await ctx.db.query('invites').order('desc').take(1000)
-    return await Promise.all(
-      invites.map(async (invite) => {
-        const claimedBy = invite.claimedByUserId
-          ? await ctx.db.get('users', invite.claimedByUserId)
-          : null
-        return {
-          _id: invite._id,
-          label: invite.label ?? null,
-          kind: !invite.forUserId
-            ? ('new' as const)
-            : invite.replacesSessions
-              ? ('recovery' as const)
-              : ('device' as const),
-          grantsAdmin: invite.grantsAdmin === true,
-          createdAt: invite._creationTime,
-          claimedAt: invite.claimedAt ?? null,
-          claimedByName: claimedBy?.name ?? null,
-        }
-      }),
-    )
+    return invites.map((invite) => ({
+      _id: invite._id,
+      label: invite.label,
+      kind: !invite.forUserId
+        ? ('new' as const)
+        : invite.replacesSessions
+          ? ('recovery' as const)
+          : ('device' as const),
+      grantsAdmin: invite.grantsAdmin === true,
+      createdAt: invite._creationTime,
+      claimedAt: invite.claimedAt ?? null,
+      claimedByUserId: invite.claimedByUserId ?? null,
+    }))
   },
 })
 

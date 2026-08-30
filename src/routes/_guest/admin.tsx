@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { Navigate, createFileRoute, redirect } from '@tanstack/react-router'
-import { convexQuery } from '@convex-dev/react-query'
-import { useSuspenseQuery } from '@tanstack/react-query'
 import { api } from '../../../convex/_generated/api'
 import {
   AlertDialog,
@@ -35,7 +33,13 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/copy-button'
-import { useMe, useSessionAction, useSessionToken } from '@/lib/guest'
+import { ErrorText } from '@/components/screens'
+import {
+  sessionQueryOptions,
+  useMe,
+  useSessionAction,
+  useSessionQuery,
+} from '@/lib/guest'
 import { inviteUrl } from '@/lib/invites'
 
 export const Route = createFileRoute('/_guest/admin')({
@@ -46,10 +50,10 @@ export const Route = createFileRoute('/_guest/admin')({
     const { sessionToken } = context
     await Promise.all([
       context.queryClient.ensureQueryData(
-        convexQuery(api.invites.list, { sessionToken }),
+        sessionQueryOptions(api.invites.list, {}, sessionToken),
       ),
       context.queryClient.ensureQueryData(
-        convexQuery(api.users.list, { sessionToken }),
+        sessionQueryOptions(api.users.list, {}, sessionToken),
       ),
     ])
   },
@@ -71,10 +75,6 @@ function AdminPage() {
       <Users />
     </div>
   )
-}
-
-function ErrorText({ message }: { message: string | null }) {
-  return message ? <p className="text-sm text-destructive">{message}</p> : null
 }
 
 // Rendered in the viewer's timezone; the server can only guess UTC.
@@ -126,15 +126,8 @@ function MintInvites() {
   const [fresh, setFresh] = useState<FreshLink[]>([])
 
   async function mint() {
-    const labels = names
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-    if (labels.length === 0) return
-    const minted = await create.run({
-      labels,
-      grantsAdmin: grantsAdmin || undefined,
-    })
+    // The server trims, collapses whitespace and skips blank lines.
+    const minted = await create.run({ labels: names.split('\n'), grantsAdmin })
     if (!minted) return
     setFresh(
       minted.map(({ label, token }) => ({ label, url: inviteUrl(token) })),
@@ -207,10 +200,9 @@ function MintInvites() {
 }
 
 function Invites() {
-  const sessionToken = useSessionToken()
-  const { data: invites } = useSuspenseQuery(
-    convexQuery(api.invites.list, { sessionToken }),
-  )
+  const { data: invites } = useSessionQuery(api.invites.list, {})
+  const { data: users } = useSessionQuery(api.users.list, {})
+  const names = new Map(users.map((user) => [user._id, user.name]))
 
   return (
     <Card>
@@ -233,7 +225,15 @@ function Invites() {
           </TableHeader>
           <TableBody>
             {invites.map((invite) => (
-              <InviteRowView key={invite._id} invite={invite} />
+              <InviteRowView
+                key={invite._id}
+                invite={invite}
+                claimedByName={
+                  invite.claimedByUserId
+                    ? names.get(invite.claimedByUserId)
+                    : undefined
+                }
+              />
             ))}
           </TableBody>
         </Table>
@@ -242,20 +242,21 @@ function Invites() {
   )
 }
 
-function InviteRowView({ invite }: { invite: InviteRow }) {
+function InviteRowView({
+  invite,
+  claimedByName,
+}: {
+  invite: InviteRow
+  claimedByName: string | undefined
+}) {
   const revoke = useSessionAction(api.invites.revoke)
   return (
     <TableRow>
       <TableCell className="font-medium">
-        {invite.label ?? '—'}
-        {invite.kind === 'device' && (
+        {invite.label}
+        {invite.kind !== 'new' && (
           <Badge variant="outline" className="ml-2">
-            device link
-          </Badge>
-        )}
-        {invite.kind === 'recovery' && (
-          <Badge variant="outline" className="ml-2">
-            recovery link
+            {invite.kind} link
           </Badge>
         )}
         {invite.grantsAdmin && (
@@ -266,7 +267,7 @@ function InviteRowView({ invite }: { invite: InviteRow }) {
       </TableCell>
       <TableCell className="text-muted-foreground">
         {invite.claimedAt
-          ? `Claimed${invite.claimedByName ? ` by ${invite.claimedByName}` : ''}`
+          ? `Claimed${claimedByName ? ` by ${claimedByName}` : ''}`
           : 'Unclaimed'}
         <ErrorText message={revoke.error} />
       </TableCell>
@@ -281,7 +282,7 @@ function InviteRowView({ invite }: { invite: InviteRow }) {
                 Revoke
               </Button>
             }
-            title={`Revoke ${invite.label ?? 'this'}'s link?`}
+            title={`Revoke ${invite.label}'s link?`}
             description="If the link was already sent, it will stop working. You can mint a new one afterwards."
             action="Revoke"
             onConfirm={() => void revoke.run({ inviteId: invite._id })}
@@ -293,11 +294,8 @@ function InviteRowView({ invite }: { invite: InviteRow }) {
 }
 
 function Users() {
-  const sessionToken = useSessionToken()
   const me = useMe()
-  const { data: users } = useSuspenseQuery(
-    convexQuery(api.users.list, { sessionToken }),
-  )
+  const { data: users } = useSessionQuery(api.users.list, {})
 
   return (
     <Card>
@@ -338,7 +336,6 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
   const createForUser = useSessionAction(api.invites.createForUser)
   const signOut = useSessionAction(api.users.signOutEverywhere)
   const [link, setLink] = useState<string | null>(null)
-  const error = setAdmin.error ?? createForUser.error ?? signOut.error
 
   async function recover() {
     const minted = await createForUser.run({ userId: user._id })
@@ -349,7 +346,9 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
     <TableRow>
       <TableCell className="font-medium">
         {user.name}
-        <ErrorText message={error} />
+        <ErrorText
+          message={setAdmin.error ?? createForUser.error ?? signOut.error}
+        />
       </TableCell>
       <TableCell>
         <Checkbox

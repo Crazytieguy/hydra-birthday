@@ -1,17 +1,20 @@
 import type { MutationCtx } from '../_generated/server'
 import type { Id } from '../_generated/dataModel'
 
-// A guest can be signed in on this many browsers at once; the oldest session
-// is dropped past that, so "use another device" can't grow without bound.
+// A guest can be signed in on this many browsers at once; past that the
+// oldest session is dropped, so "use another device" can't grow unboundedly.
 export const MAX_SESSIONS_PER_USER = 10
 
+const userSessions = (ctx: MutationCtx, userId: Id<'users'>) =>
+  ctx.db.query('sessions').withIndex('by_userId', (q) => q.eq('userId', userId))
+
 export async function deleteSessions(ctx: MutationCtx, userId: Id<'users'>) {
-  const sessions = await ctx.db
-    .query('sessions')
-    .withIndex('by_userId', (q) => q.eq('userId', userId))
-    .take(MAX_SESSIONS_PER_USER + 1)
-  for (const session of sessions) await ctx.db.delete('sessions', session._id)
-  return sessions.length
+  let deleted = 0
+  for await (const session of userSessions(ctx, userId)) {
+    await ctx.db.delete('sessions', session._id)
+    deleted++
+  }
+  return deleted
 }
 
 export async function insertSession(
@@ -20,15 +23,10 @@ export async function insertSession(
   tokenHash: string,
 ) {
   await ctx.db.insert('sessions', { userId, tokenHash })
-  // Oldest first; drop what exceeds the cap.
-  const sessions = await ctx.db
-    .query('sessions')
-    .withIndex('by_userId', (q) => q.eq('userId', userId))
-    .take(MAX_SESSIONS_PER_USER + 1)
-  for (const session of sessions.slice(
-    0,
-    Math.max(0, sessions.length - MAX_SESSIONS_PER_USER),
-  )) {
-    await ctx.db.delete('sessions', session._id)
-  }
+  // Index order is creation time, so the first row is the oldest.
+  const sessions = await userSessions(ctx, userId).take(
+    MAX_SESSIONS_PER_USER + 1,
+  )
+  if (sessions.length > MAX_SESSIONS_PER_USER)
+    await ctx.db.delete('sessions', sessions[0]._id)
 }

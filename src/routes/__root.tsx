@@ -6,9 +6,9 @@ import {
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
-import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 import appCss from '../styles.css?url'
 import { ModeToggle } from '@/components/mode-toggle'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -48,7 +48,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-dvh">
-        <ThemeProvider defaultTheme="system" storageKey="theme">
+        <ThemeProvider>
           <header className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
             <Link to="/" className="font-semibold tracking-tight">
               Hydra Birthday
@@ -64,7 +64,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               name: 'Tanstack Router',
               render: <TanStackRouterDevtoolsPanel />,
             },
-            TanStackQueryDevtools,
+            { name: 'Tanstack Query', render: <ReactQueryDevtoolsPanel /> },
           ]}
         />
         <Scripts />

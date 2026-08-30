@@ -2,6 +2,12 @@ import { useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+const views = {
+  idle: { Icon: Copy, text: null },
+  copied: { Icon: Check, text: 'Copied' },
+  failed: { Icon: X, text: 'Copy failed' },
+}
+
 export function CopyButton({
   text,
   label = 'Copy',
@@ -9,7 +15,8 @@ export function CopyButton({
   text: string
   label?: string
 }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [state, setState] = useState<keyof typeof views>('idle')
+  const { Icon, text: feedback } = views[state]
   return (
     <Button
       type="button"
@@ -25,18 +32,8 @@ export function CopyButton({
         setTimeout(() => setState('idle'), 2000)
       }}
     >
-      {state === 'copied' ? (
-        <Check className="size-4" />
-      ) : state === 'failed' ? (
-        <X className="size-4" />
-      ) : (
-        <Copy className="size-4" />
-      )}
-      {state === 'copied'
-        ? 'Copied'
-        : state === 'failed'
-          ? 'Copy failed'
-          : label}
+      <Icon className="size-4" />
+      {feedback ?? label}
     </Button>
   )
 }

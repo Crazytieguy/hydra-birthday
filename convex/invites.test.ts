@@ -2,6 +2,7 @@
 import { convexTest } from 'convex-test'
 import { describe, expect, test } from 'vitest'
 import { api, internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import { MAX_SESSIONS_PER_USER } from './lib/sessions'
 import { newToken } from './lib/tokens'
 import schema from './schema'
@@ -31,6 +32,24 @@ async function claim(
 
 const me = (t: T, sessionToken: string) =>
   t.query(api.users.me, { sessionToken })
+const join = async (t: T, name: string) => claim(t, await mintOne(t, name))
+async function joinAs(t: T, name: string) {
+  const sessionToken = await join(t, name)
+  return { sessionToken, user: (await me(t, sessionToken))! }
+}
+const peek = (t: T, token: string, sessionToken?: string) =>
+  t.query(api.invites.peek, sessionToken ? { token, sessionToken } : { token })
+const deviceLink = async (t: T, sessionToken: string) =>
+  (await t.mutation(api.invites.createForSelf, { sessionToken })).token
+const recoveryLink = async (t: T, adminToken: string, userId: Id<'users'>) =>
+  (
+    await t.mutation(api.invites.createForUser, {
+      sessionToken: adminToken,
+      userId,
+    })
+  ).token
+const listInvites = (t: T, adminToken: string) =>
+  t.query(api.invites.list, { sessionToken: adminToken })
 
 async function setup() {
   const t = convexTest(schema, modules)
@@ -44,10 +63,11 @@ describe('claiming an invite', () => {
   test('creates a user named by the guest and a session that resolves to it', async () => {
     const { t } = await setup()
     const token = await mintOne(t, 'Alice')
-    expect(await t.query(api.invites.peek, { token })).toEqual({
+    expect(await peek(t, token)).toEqual({
       status: 'available',
       kind: 'new',
       label: 'Alice',
+      viewer: null,
     })
 
     const sessionToken = await claim(t, token, '  Alice   B ')
@@ -55,11 +75,8 @@ describe('claiming an invite', () => {
       name: 'Alice B',
       isAdmin: false,
     })
-    expect(await t.query(api.invites.peek, { token })).toEqual({
-      status: 'claimed',
-      mine: false,
-    })
-    expect(await t.query(api.invites.peek, { token, sessionToken })).toEqual({
+    expect(await peek(t, token)).toEqual({ status: 'claimed', mine: false })
+    expect(await peek(t, token, sessionToken)).toEqual({
       status: 'claimed',
       mine: true,
     })
@@ -67,7 +84,7 @@ describe('claiming an invite', () => {
 
   test('falls back to the label as the name', async () => {
     const { t } = await setup()
-    const sessionToken = await claim(t, await mintOne(t, 'Bob'))
+    const sessionToken = await join(t, 'Bob')
     expect(await me(t, sessionToken)).toMatchObject({ name: 'Bob' })
   })
 
@@ -80,9 +97,7 @@ describe('claiming an invite', () => {
     await expect(claim(t, token, 'x'.repeat(61))).rejects.toEqual(
       failsWith('INVALID_NAME'),
     )
-    expect(await t.query(api.invites.peek, { token })).toMatchObject({
-      status: 'available',
-    })
+    expect(await peek(t, token)).toMatchObject({ status: 'available' })
     const sessionToken = await claim(t, token, 'Carol C')
     expect(await me(t, sessionToken)).toMatchObject({ name: 'Carol C' })
   })
@@ -111,7 +126,7 @@ describe('claiming an invite', () => {
     await expect(
       claim(t, await mintOne(t, 'Erin'), undefined, 'short'),
     ).rejects.toEqual(failsWith('INVALID_SESSION_TOKEN'))
-    const reused = await claim(t, await mintOne(t, 'Erin'))
+    const reused = await join(t, 'Erin')
     await expect(
       claim(t, await mintOne(t, 'Erin 2'), undefined, reused),
     ).rejects.toEqual(failsWith('INVALID_SESSION_TOKEN'))
@@ -119,11 +134,19 @@ describe('claiming an invite', () => {
 
   test('unknown tokens are invalid', async () => {
     const { t } = await setup()
-    expect(await t.query(api.invites.peek, { token: 'nope' })).toEqual({
-      status: 'invalid',
-    })
+    expect(await peek(t, 'nope')).toEqual({ status: 'invalid' })
     await expect(claim(t, 'nope')).rejects.toEqual(failsWith('INVALID_INVITE'))
     expect(await me(t, 'nope')).toBeNull()
+  })
+
+  test('the page can tell a signed-in viewer who they are', async () => {
+    const { t } = await setup()
+    const { sessionToken } = await joinAs(t, 'Zed')
+    expect(
+      await peek(t, await mintOne(t, 'Alice'), sessionToken),
+    ).toMatchObject({
+      viewer: { name: 'Zed' },
+    })
   })
 
   test('admin-flagged invites create admins', async () => {
@@ -138,57 +161,42 @@ describe('claiming an invite', () => {
 describe('use another device', () => {
   test('links a second session to the same account without renaming it', async () => {
     const { t } = await setup()
-    const phone = await claim(t, await mintOne(t, 'Eve'))
-    const { token } = await t.mutation(api.invites.createForSelf, {
-      sessionToken: phone,
-    })
-    expect(await t.query(api.invites.peek, { token })).toEqual({
+    const phone = await join(t, 'Eve')
+    const token = await deviceLink(t, phone)
+    expect(await peek(t, token)).toEqual({
       status: 'available',
       kind: 'existing',
       name: 'Eve',
       mine: false,
+      viewer: null,
     })
     // The browser that minted it recognises its own link.
-    expect(
-      await t.query(api.invites.peek, { token, sessionToken: phone }),
-    ).toMatchObject({
+    expect(await peek(t, token, phone)).toMatchObject({
       mine: true,
+      viewer: { name: 'Eve' },
     })
 
     const laptop = await claim(t, token, 'Someone Else')
     expect(await me(t, laptop)).toEqual(await me(t, phone))
     expect((await me(t, laptop))?.name).toBe('Eve')
-    // Both devices stay signed in.
-    expect(await me(t, phone)).not.toBeNull()
   })
 
   test('only the newest unclaimed device link works', async () => {
     const { t } = await setup()
-    const phone = await claim(t, await mintOne(t, 'Eve'))
-    const first = await t.mutation(api.invites.createForSelf, {
-      sessionToken: phone,
-    })
-    const second = await t.mutation(api.invites.createForSelf, {
-      sessionToken: phone,
-    })
-    expect(await t.query(api.invites.peek, { token: first.token })).toEqual({
-      status: 'invalid',
-    })
-    expect(
-      await t.query(api.invites.peek, { token: second.token }),
-    ).toMatchObject({
-      status: 'available',
-    })
+    const phone = await join(t, 'Eve')
+    const first = await deviceLink(t, phone)
+    const second = await deviceLink(t, phone)
+    expect(await peek(t, first)).toEqual({ status: 'invalid' })
+    expect(await peek(t, second)).toMatchObject({ status: 'available' })
   })
 
   test(`keeps at most ${MAX_SESSIONS_PER_USER} sessions, dropping the oldest`, async () => {
     const { t } = await setup()
-    const sessions = [await claim(t, await mintOne(t, 'Eve'))]
+    const sessions = [await join(t, 'Eve')]
     for (let i = 0; i < MAX_SESSIONS_PER_USER; i++) {
-      const { token } = await t.mutation(api.invites.createForSelf, {
-        sessionToken: sessions[sessions.length - 1],
-      })
-      sessions.push(await claim(t, token))
+      sessions.push(
+        await claim(t, await deviceLink(t, sessions[sessions.length - 1])),
+      )
     }
     expect(await me(t, sessions[0])).toBeNull()
     for (const sessionToken of sessions.slice(1))
@@ -197,21 +205,17 @@ describe('use another device', () => {
 
   test('requires a valid session', async () => {
     const { t } = await setup()
-    await expect(
-      t.mutation(api.invites.createForSelf, { sessionToken: 'bogus' }),
-    ).rejects.toEqual(failsWith('UNAUTHENTICATED'))
+    await expect(deviceLink(t, 'bogus')).rejects.toEqual(
+      failsWith('UNAUTHENTICATED'),
+    )
   })
 })
 
 describe('recovery', () => {
   test('an admin recovery link signs the account out of every other browser', async () => {
     const { t, adminToken } = await setup()
-    const lost = await claim(t, await mintOne(t, 'Faye'))
-    const faye = (await me(t, lost))!
-    const { token } = await t.mutation(api.invites.createForUser, {
-      sessionToken: adminToken,
-      userId: faye._id,
-    })
+    const { sessionToken: lost, user: faye } = await joinAs(t, 'Faye')
+    const token = await recoveryLink(t, adminToken, faye._id)
     // Still signed in until the new link is actually used.
     expect(await me(t, lost)).not.toBeNull()
     const found = await claim(t, token)
@@ -221,12 +225,8 @@ describe('recovery', () => {
 
   test('sign out everywhere invalidates every session but keeps the account', async () => {
     const { t, adminToken } = await setup()
-    const phone = await claim(t, await mintOne(t, 'Gus'))
-    const { token } = await t.mutation(api.invites.createForSelf, {
-      sessionToken: phone,
-    })
-    const laptop = await claim(t, token)
-    const gus = (await me(t, phone))!
+    const { sessionToken: phone, user: gus } = await joinAs(t, 'Gus')
+    const laptop = await claim(t, await deviceLink(t, phone))
     expect(
       await t.mutation(api.users.signOutEverywhere, {
         sessionToken: adminToken,
@@ -244,21 +244,15 @@ describe('recovery', () => {
 describe('admin gating', () => {
   test('guests cannot mint, list, promote, or sign others out', async () => {
     const { t } = await setup()
-    const sessionToken = await claim(t, await mintOne(t, 'Frank'))
-    const frank = (await me(t, sessionToken))!
+    const { sessionToken, user: frank } = await joinAs(t, 'Frank')
     const forbidden = failsWith('FORBIDDEN')
     await expect(
       t.mutation(api.invites.create, { sessionToken, labels: ['x'] }),
     ).rejects.toEqual(forbidden)
-    await expect(
-      t.mutation(api.invites.createForUser, {
-        sessionToken,
-        userId: frank._id,
-      }),
-    ).rejects.toEqual(forbidden)
-    await expect(t.query(api.invites.list, { sessionToken })).rejects.toEqual(
+    await expect(recoveryLink(t, sessionToken, frank._id)).rejects.toEqual(
       forbidden,
     )
+    await expect(listInvites(t, sessionToken)).rejects.toEqual(forbidden)
     await expect(t.query(api.users.list, { sessionToken })).rejects.toEqual(
       forbidden,
     )
@@ -287,10 +281,10 @@ describe('admin gating', () => {
     expect(minted.map((m) => m.label)).toEqual(['Grace', 'Heidi Ho'])
     expect(new Set(minted.map((m) => m.token)).size).toBe(2)
 
-    await claim(t, minted[0].token, 'Gracie')
-    const listed = await t.query(api.invites.list, { sessionToken: adminToken })
+    const gracie = (await me(t, await claim(t, minted[0].token, 'Gracie')))!
+    const listed = await listInvites(t, adminToken)
     expect(listed.find((i) => i.label === 'Grace')).toMatchObject({
-      claimedByName: 'Gracie',
+      claimedByUserId: gracie._id,
       kind: 'new',
       grantsAdmin: false,
     })
@@ -301,11 +295,7 @@ describe('admin gating', () => {
       sessionToken: adminToken,
       inviteId: heidi._id,
     })
-    expect(await t.query(api.invites.peek, { token: minted[1].token })).toEqual(
-      {
-        status: 'invalid',
-      },
-    )
+    expect(await peek(t, minted[1].token)).toEqual({ status: 'invalid' })
     const grace = listed.find((i) => i.label === 'Grace')!
     await expect(
       t.mutation(api.invites.revoke, {
@@ -317,20 +307,14 @@ describe('admin gating', () => {
 
   test('the list tells device links and recovery links apart', async () => {
     const { t, adminToken } = await setup()
-    const phone = await claim(t, await mintOne(t, 'Ida'))
-    const ida = (await me(t, phone))!
-    await t.mutation(api.invites.createForSelf, { sessionToken: phone })
-    const listed = await t.query(api.invites.list, { sessionToken: adminToken })
+    const { sessionToken: phone, user: ida } = await joinAs(t, 'Ida')
+    await deviceLink(t, phone)
+    const listed = await listInvites(t, adminToken)
     expect(
       listed.find((i) => i.label === 'Ida' && i.kind === 'device'),
     ).toBeDefined()
-    await t.mutation(api.invites.createForUser, {
-      sessionToken: adminToken,
-      userId: ida._id,
-    })
-    const relisted = await t.query(api.invites.list, {
-      sessionToken: adminToken,
-    })
+    await recoveryLink(t, adminToken, ida._id)
+    const relisted = await listInvites(t, adminToken)
     expect(
       relisted
         .filter((i) => i.label === 'Ida' && !i.claimedAt)
@@ -340,8 +324,7 @@ describe('admin gating', () => {
 
   test('admins promote and demote others but not themselves', async () => {
     const { t, adminToken } = await setup()
-    const sessionToken = await claim(t, await mintOne(t, 'Ivan'))
-    const ivan = (await me(t, sessionToken))!
+    const { sessionToken, user: ivan } = await joinAs(t, 'Ivan')
     const setIvan = (isAdmin: boolean) =>
       t.mutation(api.users.setAdmin, {
         sessionToken: adminToken,

@@ -5,66 +5,51 @@ import {
 } from 'convex-helpers/server/customFunctions'
 import { mutation, query } from '../_generated/server'
 import type { QueryCtx } from '../_generated/server'
+import type { Doc } from '../_generated/dataModel'
 import { hashToken } from './tokens'
 
 // Auth is "token as argument": the browser's session cookie is passed to every
 // gated function as `sessionToken`. These builders resolve it to `ctx.user`
-// (and `ctx.session`) and strip it from the handler's args.
+// and strip it from the handler's args.
 
-export async function findSessionUser(ctx: QueryCtx, sessionToken: string) {
-  const tokenHash = await hashToken(sessionToken)
-  const session = await ctx.db
+export function findSessionByHash(ctx: QueryCtx, tokenHash: string) {
+  return ctx.db
     .query('sessions')
     .withIndex('by_tokenHash', (q) => q.eq('tokenHash', tokenHash))
     .unique()
-  if (!session) return null
-  const user = await ctx.db.get('users', session.userId)
-  if (!user) return null
-  return { session, user }
 }
 
-async function requireSessionUser(ctx: QueryCtx, sessionToken: string) {
-  const found = await findSessionUser(ctx, sessionToken)
-  if (!found) throw new ConvexError({ code: 'UNAUTHENTICATED' as const })
-  return found
+export async function findSessionUser(
+  ctx: QueryCtx,
+  sessionToken: string,
+): Promise<Doc<'users'> | null> {
+  const session = await findSessionByHash(ctx, await hashToken(sessionToken))
+  return session ? await ctx.db.get('users', session.userId) : null
+}
+
+async function requireUser(ctx: QueryCtx, sessionToken: string) {
+  const user = await findSessionUser(ctx, sessionToken)
+  if (!user) throw new ConvexError({ code: 'UNAUTHENTICATED' as const })
+  return user
 }
 
 async function requireAdmin(ctx: QueryCtx, sessionToken: string) {
-  const found = await requireSessionUser(ctx, sessionToken)
-  if (!found.user.isAdmin) throw new ConvexError({ code: 'FORBIDDEN' as const })
-  return found
+  const user = await requireUser(ctx, sessionToken)
+  if (!user.isAdmin) throw new ConvexError({ code: 'FORBIDDEN' as const })
+  return user
 }
 
-const sessionArgs = { sessionToken: v.string() }
-
-export const sessionQuery = customQuery(query, {
-  args: sessionArgs,
-  input: async (ctx, { sessionToken }) => ({
-    ctx: await requireSessionUser(ctx, sessionToken),
+const gate = (
+  check: (ctx: QueryCtx, sessionToken: string) => Promise<Doc<'users'>>,
+) => ({
+  args: { sessionToken: v.string() },
+  input: async (ctx: QueryCtx, { sessionToken }: { sessionToken: string }) => ({
+    ctx: { user: await check(ctx, sessionToken) },
     args: {},
   }),
 })
 
-export const sessionMutation = customMutation(mutation, {
-  args: sessionArgs,
-  input: async (ctx, { sessionToken }) => ({
-    ctx: await requireSessionUser(ctx, sessionToken),
-    args: {},
-  }),
-})
-
-export const adminQuery = customQuery(query, {
-  args: sessionArgs,
-  input: async (ctx, { sessionToken }) => ({
-    ctx: await requireAdmin(ctx, sessionToken),
-    args: {},
-  }),
-})
-
-export const adminMutation = customMutation(mutation, {
-  args: sessionArgs,
-  input: async (ctx, { sessionToken }) => ({
-    ctx: await requireAdmin(ctx, sessionToken),
-    args: {},
-  }),
-})
+export const sessionQuery = customQuery(query, gate(requireUser))
+export const sessionMutation = customMutation(mutation, gate(requireUser))
+export const adminQuery = customQuery(query, gate(requireAdmin))
+export const adminMutation = customMutation(mutation, gate(requireAdmin))

@@ -6,27 +6,16 @@ import {
   findSessionUser,
   sessionMutation,
 } from './lib/auth'
+import { normalizeName } from './lib/names'
 import { deleteSessions } from './lib/sessions'
-
-export const NAME_MAX_LENGTH = 60
-
-export function normalizeName(raw: string): string {
-  const name = raw.trim().replace(/\s+/g, ' ')
-  if (name.length === 0 || name.length > NAME_MAX_LENGTH) {
-    throw new ConvexError({ code: 'INVALID_NAME' as const })
-  }
-  return name
-}
 
 // The signed-in guest, or null for a missing/unknown session token. Never
 // throws: the `_guest` layout uses null to send people to /welcome.
 export const me = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, { sessionToken }) => {
-    const found = await findSessionUser(ctx, sessionToken)
-    if (!found) return null
-    const { user } = found
-    return { _id: user._id, name: user.name, isAdmin: user.isAdmin }
+    const user = await findSessionUser(ctx, sessionToken)
+    return user && { _id: user._id, name: user.name, isAdmin: user.isAdmin }
   },
 })
 

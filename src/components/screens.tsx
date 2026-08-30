@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
-import { errorCode } from '@/lib/errors'
+import { describeError } from '@/lib/errors'
 
 export function Screen({
   title,
@@ -20,26 +20,17 @@ export function Screen({
   )
 }
 
+export function ErrorText({ message }: { message: string | null }) {
+  return message ? <p className="text-sm text-destructive">{message}</p> : null
+}
+
 export function ErrorScreen({ error }: { error: Error }) {
-  const code = errorCode(error)
-  if (code === 'UNAUTHENTICATED') return <SessionEndedScreen />
-  if (code === 'FORBIDDEN') {
-    return (
-      <Screen
-        title="Admins only"
-        description="This page is reserved for the birthday crew."
-      >
-        <Button asChild>
-          <Link to="/">Back home</Link>
-        </Button>
-      </Screen>
-    )
-  }
   return (
-    <Screen
-      title="Something went wrong"
-      description="An unexpected error occurred. Try refreshing the page."
-    />
+    <Screen title="Something went wrong" description={describeError(error)}>
+      <Button asChild>
+        <Link to="/">Back home</Link>
+      </Button>
+    </Screen>
   )
 }
 
@@ -50,14 +41,5 @@ export function NotFoundScreen() {
         <Link to="/">Back home</Link>
       </Button>
     </Screen>
-  )
-}
-
-export function SessionEndedScreen() {
-  return (
-    <Screen
-      title="Session ended"
-      description="This browser's invite is no longer valid. Ask for a new link to get back in."
-    />
   )
 }

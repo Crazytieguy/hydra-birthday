@@ -1,4 +1,8 @@
 import { ConvexError } from 'convex/values'
+import { NAME_MAX_LENGTH } from '../../convex/lib/names'
+
+// A browser-side failure whose message is already written for the guest.
+export class UserFacingError extends Error {}
 
 // Every expected failure in convex/ is a `ConvexError({ code })`.
 export function errorCode(error: unknown): string | undefined {
@@ -19,11 +23,12 @@ const messages: Record<string, string> = {
   NOT_FOUND: "That doesn't exist anymore.",
   INVITE_CLAIMED: 'That link was already used.',
   INVALID_INVITE: "That link isn't valid anymore.",
-  INVALID_NAME: 'Please enter a name (up to 60 characters).',
+  INVALID_NAME: `Please enter a name (up to ${NAME_MAX_LENGTH} characters).`,
   CANNOT_DEMOTE_SELF: "You can't remove your own admin access.",
 }
 
 export function describeError(error: unknown): string {
+  if (error instanceof UserFacingError) return error.message
   return (
     messages[errorCode(error) ?? ''] ??
     'Something went wrong — please try again.'

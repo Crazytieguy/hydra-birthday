@@ -8,35 +8,42 @@
 // message. Links are only ever printed once — they are stored hashed.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { parseArgs } from 'node:util'
+import { invitePath } from '../src/lib/invites'
+import { siteOrigin } from './config'
 
 const USAGE = `usage: bun run invite [--prod] [--admin] [--base <url>] [--file names.txt] [name ...]
   --prod        mint on the production deployment (default: your dev deployment)
   --admin       the accounts created from these links are admins
-  --base <url>  site origin for the printed links (default: APP_URL, else
-                https://hydra-birthday.code-bloom.app with --prod, http://localhost:3000 otherwise)
+  --base <url>  site origin for the printed links (default: ${siteOrigin(true)} with --prod,
+                ${siteOrigin(false)} otherwise)
   --file <path> read names from a file, one per line (stdin is read when no names are given)`
 
-const argv = process.argv.slice(2)
-let prod = false
-let admin = false
-let base = ''
-let file = ''
-const names: string[] = []
-for (let i = 0; i < argv.length; i++) {
-  const arg = argv[i]
-  if (arg === '--prod') prod = true
-  else if (arg === '--admin') admin = true
-  else if (arg === '--base') base = argv[++i] ?? ''
-  else if (arg === '--file') file = argv[++i] ?? ''
-  else if (arg === '--help' || arg === '-h') {
-    console.log(USAGE)
-    process.exit(0)
-  } else if (arg.startsWith('-')) {
-    console.error(`unknown option ${arg}\n${USAGE}`)
-    process.exit(2)
-  } else names.push(arg)
+let parsed: ReturnType<typeof parseArgs<typeof spec>>
+const spec = {
+  options: {
+    prod: { type: 'boolean', default: false },
+    admin: { type: 'boolean', default: false },
+    base: { type: 'string' },
+    file: { type: 'string' },
+    help: { type: 'boolean', short: 'h', default: false },
+  },
+  allowPositionals: true,
+} as const
+try {
+  parsed = parseArgs(spec)
+} catch (error) {
+  console.error(
+    `${error instanceof Error ? error.message : String(error)}\n${USAGE}`,
+  )
+  process.exit(2)
 }
-if (file) names.push(...readFileSync(file, 'utf8').split('\n'))
+const { values: flags, positionals: names } = parsed
+if (flags.help) {
+  console.log(USAGE)
+  process.exit(0)
+}
+if (flags.file) names.push(...readFileSync(flags.file, 'utf8').split('\n'))
 if (names.length === 0 && !process.stdin.isTTY)
   names.push(...readFileSync(0, 'utf8').split('\n'))
 const labels = names.map((name) => name.trim()).filter(Boolean)
@@ -45,19 +52,14 @@ if (labels.length === 0) {
   process.exit(2)
 }
 
-const origin = (
-  base ||
-  process.env.APP_URL ||
-  (prod ? 'https://hydra-birthday.code-bloom.app' : 'http://localhost:3000')
-).replace(/\/$/, '')
-
+const origin = (flags.base ?? siteOrigin(flags.prod)).replace(/\/$/, '')
 const args = [
   'convex',
   'run',
   'invites:createInternal',
-  JSON.stringify({ labels, grantsAdmin: admin || undefined }),
+  JSON.stringify({ labels, grantsAdmin: flags.admin }),
 ]
-if (prod) args.push('--prod')
+if (flags.prod) args.push('--prod')
 // `convex run` prints its return value as JSON when stdout is not a TTY.
 const result = spawnSync('bunx', args, {
   encoding: 'utf8',
@@ -69,4 +71,4 @@ const minted = JSON.parse(result.stdout) as Array<{
   token: string
 }>
 for (const { label, token } of minted)
-  console.log(`${label}\t${origin}/invite/${token}`)
+  console.log(`${label}\t${origin}${invitePath(token)}`)

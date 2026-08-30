@@ -24,7 +24,7 @@ export default defineSchema({
   // claiming it creates a new user named by the guest (prefilled from `label`).
   invites: defineTable({
     tokenHash: v.string(),
-    label: v.optional(v.string()),
+    label: v.string(),
     forUserId: v.optional(v.id('users')),
     replacesSessions: v.optional(v.boolean()),
     grantsAdmin: v.optional(v.boolean()),
