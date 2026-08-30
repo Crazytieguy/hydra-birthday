@@ -1,0 +1,17 @@
+bun.lock
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+.output/
+.nitro/
+.tanstack/
+.vercel/
+.llms-fetch-mcp/
+convex/_generated/
+convex/README.md
+src/routeTree.gen.ts
+.claude/skills/
+.agents/skills/
+.claude/scripts/
+skills-lock.json
+.cta.json
