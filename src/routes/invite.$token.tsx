@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import {
+  Link,
+  Navigate,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { convexQuery } from '@convex-dev/react-query'
 import { useSuspenseQuery } from '@tanstack/react-query'
@@ -26,9 +32,11 @@ import {
 // a mutation — so link-preview bots (Signal, WhatsApp, Partiful) can't burn it.
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ context, params }) => {
-    await context.queryClient.ensureQueryData(
+    const invite = await context.queryClient.ensureQueryData(
       peekQuery(params.token, context.sessionToken),
     )
+    // Reopening the link you joined with: nothing to do here, go home.
+    if (invite.status === 'claimed' && invite.mine) throw redirect({ to: '/' })
   },
   component: InvitePage,
 })
@@ -214,18 +222,9 @@ function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
   const [pending, setPending] = useState(false)
   useEffect(() => setPending(hasPendingSessionToken(token)), [token])
 
-  if (mine) {
-    return (
-      <Screen
-        title="You're in"
-        description="You used this link on this browser, so you're already signed in."
-      >
-        <Button asChild>
-          <Link to="/">Open the app</Link>
-        </Button>
-      </Screen>
-    )
-  }
+  // The loader already redirects; this covers the live query flipping to
+  // "claimed" while the page is open (joined in another tab, say).
+  if (mine) return <Navigate to="/" replace />
   if (pending) {
     return (
       <Screen
