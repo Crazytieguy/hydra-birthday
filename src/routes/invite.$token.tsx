@@ -56,7 +56,7 @@ function InvitePage() {
     return (
       <Screen
         title="This link isn't valid"
-        description="Check that it was copied in full, or ask for a new one."
+        description="Make sure the whole link made it over, or ask for a new one."
       />
     )
   }
@@ -93,7 +93,7 @@ const terminal = new Set([
 const COOKIES_BLOCKED =
   'Your browser is blocking cookies or storage. Enable them for this site and try again.'
 const NOT_SAVED =
-  "Joined, but the sign-in couldn't be saved. Check your connection and try again."
+  "You joined, but this browser couldn't save the sign-in. Check your connection and try again."
 
 function useJoin(token: string) {
   const navigate = useNavigate()
@@ -159,7 +159,7 @@ function ClaimForm({
         </h1>
         <p className="text-muted-foreground">
           {invite.kind === 'new'
-            ? 'Tap join and this browser becomes your ticket in — no password, nothing to remember.'
+            ? 'Tap join and this browser becomes your ticket in. No password, nothing to remember.'
             : `This link signs this device in as ${invite.name}.`}
         </p>
       </div>
@@ -218,7 +218,7 @@ function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
     return (
       <Screen
         title="You're in"
-        description="This link was used on this browser — you're signed in."
+        description="You used this link on this browser, so you're already signed in."
       >
         <Button asChild>
           <Link to="/">Open the app</Link>
@@ -230,7 +230,7 @@ function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
     return (
       <Screen
         title="Almost there"
-        description="Your last attempt to join didn't finish. Tap below to complete it."
+        description="Your last attempt to join didn't finish. Tap below to finish it."
       >
         <Button disabled={join.busy} onClick={() => void join.run()}>
           {join.busy ? 'Joining…' : 'Finish joining'}

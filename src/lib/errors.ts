@@ -31,6 +31,6 @@ export function describeError(error: unknown): string {
   if (error instanceof UserFacingError) return error.message
   return (
     messages[errorCode(error) ?? ''] ??
-    'Something went wrong — please try again.'
+    'Something went wrong. Please try again.'
   )
 }

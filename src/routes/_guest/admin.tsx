@@ -141,8 +141,8 @@ function MintInvites() {
       <CardHeader>
         <CardTitle>New invite links</CardTitle>
         <CardDescription>
-          One name per line. Links are shown once, right here — copy them before
-          leaving.
+          One name per line. Each link shows up once, right here. Copy it before
+          you leave the page.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -283,7 +283,7 @@ function InviteRowView({
               </Button>
             }
             title={`Revoke ${invite.label}'s link?`}
-            description="If the link was already sent, it will stop working. You can mint a new one afterwards."
+            description="If you already sent it, it stops working. You can make a new one afterwards."
             action="Revoke"
             onConfirm={() => void revoke.run({ inviteId: invite._id })}
           />
@@ -302,8 +302,8 @@ function Users() {
       <CardHeader>
         <CardTitle>Guests</CardTitle>
         <CardDescription>
-          "Recovery link" gets a guest back in after losing the browser they
-          joined with — it also signs their account out everywhere else.
+          A recovery link gets a guest back in after they lose the browser they
+          joined with. It also signs them out everywhere else.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -374,7 +374,7 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
               </Button>
             }
             title={`Make a recovery link for ${user.name}?`}
-            description="The link signs one new device into their account. When it's used, every other device is signed out — including the one they lost."
+            description="The link signs one new device into their account. Using it signs every other device out, including the one they lost."
             action="Make link"
             onConfirm={() => void recover()}
           />
@@ -388,8 +388,8 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
           title={`Sign ${user.name} out everywhere?`}
           description={
             isMe
-              ? "That includes this browser: you'll need a new link to get back in."
-              : 'Every device they joined with stops working immediately. Their account and name stay; a recovery link gets them back in.'
+              ? "That includes this browser. You'll need a new link to get back in."
+              : 'Every device they joined with stops working right away. Their account and name stay, and a recovery link gets them back in.'
           }
           action="Sign out"
           onConfirm={() => void signOut.run({ userId: user._id })}
