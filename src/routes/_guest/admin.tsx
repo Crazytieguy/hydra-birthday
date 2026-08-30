@@ -141,8 +141,8 @@ function MintInvites() {
       <CardHeader>
         <CardTitle>New invite links</CardTitle>
         <CardDescription>
-          One name per line. Each link shows up once, right here. Copy it before
-          you leave the page.
+          Enter one name per line, then make sure to copy the result before you
+          leave the page.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
