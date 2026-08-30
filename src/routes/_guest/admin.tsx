@@ -1,9 +1,19 @@
 import { useState } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Navigate, createFileRoute, redirect } from '@tanstack/react-router'
 import { convexQuery } from '@convex-dev/react-query'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,7 +35,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { CopyButton } from '@/components/copy-button'
-import { useMe, useSessionMutation, useSessionToken } from '@/lib/guest'
+import { useMe, useSessionAction, useSessionToken } from '@/lib/guest'
 import { inviteUrl } from '@/lib/invites'
 
 export const Route = createFileRoute('/_guest/admin')({
@@ -46,10 +56,13 @@ export const Route = createFileRoute('/_guest/admin')({
   component: AdminPage,
 })
 
-const day = (timestamp: number) =>
-  new Date(timestamp).toISOString().slice(0, 10)
+type InviteRow = (typeof api.invites.list._returnType)[number]
+type UserRow = (typeof api.users.list._returnType)[number]
 
 function AdminPage() {
+  const me = useMe()
+  // Demoted while the page is open: leave before the admin queries error out.
+  if (!me.isAdmin) return <Navigate to="/" replace />
   return (
     <div className="space-y-8 py-8">
       <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
@@ -60,13 +73,56 @@ function AdminPage() {
   )
 }
 
+function ErrorText({ message }: { message: string | null }) {
+  return message ? <p className="text-sm text-destructive">{message}</p> : null
+}
+
+// Rendered in the viewer's timezone; the server can only guess UTC.
+function Day({ timestamp }: { timestamp: number }) {
+  const date = new Date(timestamp)
+  return (
+    <time dateTime={date.toISOString()} suppressHydrationWarning>
+      {date.toLocaleDateString()}
+    </time>
+  )
+}
+
+function Confirm({
+  trigger,
+  title,
+  description,
+  action,
+  onConfirm,
+}: {
+  trigger: React.ReactNode
+  title: string
+  description: string
+  action: string
+  onConfirm: () => void
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{action}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 type FreshLink = { label: string; url: string }
 
 function MintInvites() {
-  const create = useSessionMutation(api.invites.create)
+  const create = useSessionAction(api.invites.create)
   const [names, setNames] = useState('')
   const [grantsAdmin, setGrantsAdmin] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [fresh, setFresh] = useState<FreshLink[]>([])
 
   async function mint() {
@@ -75,20 +131,16 @@ function MintInvites() {
       .map((line) => line.trim())
       .filter(Boolean)
     if (labels.length === 0) return
-    setBusy(true)
-    try {
-      const minted = await create({
-        labels,
-        grantsAdmin: grantsAdmin || undefined,
-      })
-      setFresh(
-        minted.map(({ label, token }) => ({ label, url: inviteUrl(token) })),
-      )
-      setNames('')
-      setGrantsAdmin(false)
-    } finally {
-      setBusy(false)
-    }
+    const minted = await create.run({
+      labels,
+      grantsAdmin: grantsAdmin || undefined,
+    })
+    if (!minted) return
+    setFresh(
+      minted.map(({ label, token }) => ({ label, url: inviteUrl(token) })),
+    )
+    setNames('')
+    setGrantsAdmin(false)
   }
 
   return (
@@ -115,10 +167,14 @@ function MintInvites() {
             />
             Grant admin
           </Label>
-          <Button disabled={busy || !names.trim()} onClick={mint}>
-            Create links
+          <Button
+            disabled={create.busy || !names.trim()}
+            onClick={() => void mint()}
+          >
+            {create.busy ? 'Creating…' : 'Create links'}
           </Button>
         </div>
+        <ErrorText message={create.error} />
         {fresh.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -155,7 +211,6 @@ function Invites() {
   const { data: invites } = useSuspenseQuery(
     convexQuery(api.invites.list, { sessionToken }),
   )
-  const revoke = useSessionMutation(api.invites.revoke)
 
   return (
     <Card>
@@ -178,45 +233,62 @@ function Invites() {
           </TableHeader>
           <TableBody>
             {invites.map((invite) => (
-              <TableRow key={invite._id}>
-                <TableCell className="font-medium">
-                  {invite.label ?? '—'}
-                  {invite.kind === 'existing' && (
-                    <Badge variant="outline" className="ml-2">
-                      device link
-                    </Badge>
-                  )}
-                  {invite.grantsAdmin && (
-                    <Badge variant="secondary" className="ml-2">
-                      admin
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {invite.claimedAt
-                    ? `Claimed${invite.claimedByName ? ` by ${invite.claimedByName}` : ''}`
-                    : 'Unclaimed'}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {day(invite.createdAt)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {!invite.claimedAt && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => revoke({ inviteId: invite._id })}
-                    >
-                      Revoke
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
+              <InviteRowView key={invite._id} invite={invite} />
             ))}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
+  )
+}
+
+function InviteRowView({ invite }: { invite: InviteRow }) {
+  const revoke = useSessionAction(api.invites.revoke)
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {invite.label ?? '—'}
+        {invite.kind === 'device' && (
+          <Badge variant="outline" className="ml-2">
+            device link
+          </Badge>
+        )}
+        {invite.kind === 'recovery' && (
+          <Badge variant="outline" className="ml-2">
+            recovery link
+          </Badge>
+        )}
+        {invite.grantsAdmin && (
+          <Badge variant="secondary" className="ml-2">
+            admin
+          </Badge>
+        )}
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {invite.claimedAt
+          ? `Claimed${invite.claimedByName ? ` by ${invite.claimedByName}` : ''}`
+          : 'Unclaimed'}
+        <ErrorText message={revoke.error} />
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        <Day timestamp={invite.createdAt} />
+      </TableCell>
+      <TableCell className="text-right">
+        {!invite.claimedAt && (
+          <Confirm
+            trigger={
+              <Button variant="ghost" size="sm" disabled={revoke.busy}>
+                Revoke
+              </Button>
+            }
+            title={`Revoke ${invite.label ?? 'this'}'s link?`}
+            description="If the link was already sent, it will stop working. You can mint a new one afterwards."
+            action="Revoke"
+            onConfirm={() => void revoke.run({ inviteId: invite._id })}
+          />
+        )}
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -226,17 +298,14 @@ function Users() {
   const { data: users } = useSuspenseQuery(
     convexQuery(api.users.list, { sessionToken }),
   )
-  const setAdmin = useSessionMutation(api.users.setAdmin)
-  const createForUser = useSessionMutation(api.invites.createForUser)
-  const [links, setLinks] = useState<Partial<Record<Id<'users'>, string>>>({})
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Guests</CardTitle>
         <CardDescription>
-          "New link" signs another device into that guest's account — for when
-          someone lost the browser they joined with.
+          "Recovery link" gets a guest back in after losing the browser they
+          joined with — it also signs their account out everywhere else.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -250,54 +319,83 @@ function Users() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map((user) => {
-              const link = links[user._id]
-              return (
-                <TableRow key={user._id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>
-                    <Checkbox
-                      aria-label={`${user.name} is admin`}
-                      checked={user.isAdmin}
-                      disabled={user._id === me._id}
-                      onCheckedChange={(checked) =>
-                        setAdmin({
-                          userId: user._id,
-                          isAdmin: checked === true,
-                        })
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {day(user.createdAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {link ? (
-                      <CopyButton text={link} label="Copy link" />
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          const { token } = await createForUser({
-                            userId: user._id,
-                          })
-                          setLinks((prev) => ({
-                            ...prev,
-                            [user._id]: inviteUrl(token),
-                          }))
-                        }}
-                      >
-                        New link
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+            {users.map((user) => (
+              <UserRowView
+                key={user._id}
+                user={user}
+                isMe={user._id === me._id}
+              />
+            ))}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
+  )
+}
+
+function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
+  const setAdmin = useSessionAction(api.users.setAdmin)
+  const createForUser = useSessionAction(api.invites.createForUser)
+  const signOut = useSessionAction(api.users.signOutEverywhere)
+  const [link, setLink] = useState<string | null>(null)
+  const error = setAdmin.error ?? createForUser.error ?? signOut.error
+
+  async function recover() {
+    const minted = await createForUser.run({ userId: user._id })
+    if (minted) setLink(inviteUrl(minted.token))
+  }
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {user.name}
+        <ErrorText message={error} />
+      </TableCell>
+      <TableCell>
+        <Checkbox
+          aria-label={`${user.name} is admin`}
+          checked={user.isAdmin}
+          disabled={isMe || setAdmin.busy}
+          onCheckedChange={(checked) =>
+            void setAdmin.run({ userId: user._id, isAdmin: checked === true })
+          }
+        />
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        <Day timestamp={user.createdAt} />
+      </TableCell>
+      <TableCell className="space-x-1 text-right whitespace-nowrap">
+        {link ? (
+          <CopyButton text={link} label="Copy recovery link" />
+        ) : (
+          <Confirm
+            trigger={
+              <Button variant="ghost" size="sm" disabled={createForUser.busy}>
+                Recovery link
+              </Button>
+            }
+            title={`Make a recovery link for ${user.name}?`}
+            description="The link signs one new device into their account. When it's used, every other device is signed out — including the one they lost."
+            action="Make link"
+            onConfirm={() => void recover()}
+          />
+        )}
+        <Confirm
+          trigger={
+            <Button variant="ghost" size="sm" disabled={signOut.busy}>
+              Sign out
+            </Button>
+          }
+          title={`Sign ${user.name} out everywhere?`}
+          description={
+            isMe
+              ? "That includes this browser: you'll need a new link to get back in."
+              : 'Every device they joined with stops working immediately. Their account and name stay; a recovery link gets them back in.'
+          }
+          action="Sign out"
+          onConfirm={() => void signOut.run({ userId: user._id })}
+        />
+      </TableCell>
+    </TableRow>
   )
 }

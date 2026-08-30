@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Link,
   createFileRoute,
   useNavigate,
   useRouter,
 } from '@tanstack/react-router'
+import { useServerFn } from '@tanstack/react-start'
 import { convexQuery } from '@convex-dev/react-query'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
@@ -14,11 +15,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Screen } from '@/components/screens'
-import { errorCode } from '@/lib/errors'
+import { describeError, errorCode } from '@/lib/errors'
 import {
+  SESSION_COOKIE,
   clearPendingSessionToken,
   getOrCreatePendingSessionToken,
-  writeSessionCookie,
+  hasPendingSessionToken,
+  persistSession,
+  readCookie,
 } from '@/lib/session'
 
 // Public. Rendering never consumes the invite; only the Join button does, via
@@ -26,7 +30,10 @@ import {
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ context, params }) => {
     await context.queryClient.ensureQueryData(
-      convexQuery(api.invites.peek, { token: params.token }),
+      convexQuery(
+        api.invites.peek,
+        peekArgs(params.token, context.sessionToken),
+      ),
     )
     if (context.sessionToken) {
       await context.queryClient.ensureQueryData(
@@ -37,14 +44,25 @@ export const Route = createFileRoute('/invite/$token')({
   component: InvitePage,
 })
 
+// The cookie, if any, lets `peek` recognise the link's owner.
+const peekArgs = (token: string, sessionToken: string | null) =>
+  sessionToken ? { token, sessionToken } : { token }
+
+type Peek = typeof api.invites.peek._returnType
+type AvailableInvite = Extract<Peek, { status: 'available' }>
+
 function InvitePage() {
   const { token } = Route.useParams()
   const { sessionToken } = Route.useRouteContext()
   const { data: invite } = useSuspenseQuery(
-    convexQuery(api.invites.peek, { token }),
+    convexQuery(api.invites.peek, peekArgs(token, sessionToken)),
   )
+  // Once Join is tapped the live `peek` flips to "claimed" as soon as the
+  // mutation commits; keep the form up until we've navigated away.
+  const [joining, setJoining] = useState<AvailableInvite | null>(null)
+  const shown = joining ?? invite
 
-  if (invite.status === 'invalid') {
+  if (shown.status === 'invalid') {
     return (
       <Screen
         title="This link isn't valid"
@@ -52,11 +70,13 @@ function InvitePage() {
       />
     )
   }
-  if (invite.status === 'claimed') {
+  if (shown.status === 'claimed')
+    return <ClaimedScreen token={token} mine={shown.mine} />
+  if (shown.kind === 'existing' && shown.mine) {
     return (
       <Screen
-        title="This link was already used"
-        description="Invite links work once. If that was you on this device, you're already in."
+        title="This link is for another device"
+        description="You're already signed in here. Open it on the phone or laptop you want to sign in."
       >
         <Button asChild>
           <Link to="/">Open the app</Link>
@@ -64,74 +84,93 @@ function InvitePage() {
       </Screen>
     )
   }
-  return <ClaimForm token={token} invite={invite} sessionToken={sessionToken} />
+  return (
+    <ClaimForm
+      token={token}
+      invite={shown}
+      sessionToken={sessionToken}
+      onJoinStart={() => setJoining(shown)}
+      onJoinFail={() => setJoining(null)}
+    />
+  )
 }
 
-type AvailableInvite = Extract<
-  typeof api.invites.peek._returnType,
-  { status: 'available' }
->
-
-const messages: Record<string, string> = {
-  INVITE_CLAIMED: 'Someone already used this link.',
-  INVALID_INVITE: "This link isn't valid anymore.",
-  INVALID_NAME: 'Please enter a name (up to 60 characters).',
-}
 // After these the pending secret is useless; forget it so a retry starts clean.
 const terminal = new Set([
   'INVITE_CLAIMED',
   'INVALID_INVITE',
   'INVALID_SESSION_TOKEN',
 ])
-const GENERIC_ERROR = 'Something went wrong — please try again.'
 const COOKIES_BLOCKED =
   'Your browser is blocking cookies or storage. Enable them for this site and try again.'
+const NOT_SAVED =
+  "Joined, but the sign-in couldn't be saved. Check your connection and try again."
 
-function ClaimForm({
-  token,
-  invite,
-  sessionToken,
-}: {
-  token: string
-  invite: AvailableInvite
-  sessionToken: string | null
-}) {
+function useJoin(token: string) {
   const router = useRouter()
   const navigate = useNavigate()
   const claim = useMutation(api.invites.claim)
-  const [name, setName] = useState(
-    invite.kind === 'new' ? (invite.label ?? '') : invite.name,
-  )
+  const persist = useServerFn(persistSession)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function join() {
+  async function join(name?: string): Promise<boolean> {
     setBusy(true)
     setError(null)
     const fail = (message: string) => {
       setError(message)
       setBusy(false)
+      return false
     }
 
     const secret = getOrCreatePendingSessionToken(token)
     if (!secret) return fail(COOKIES_BLOCKED)
     try {
-      await claim({
-        token,
-        name: invite.kind === 'new' ? name : undefined,
-        sessionToken: secret,
-      })
+      await claim({ token, name, sessionToken: secret })
     } catch (caught) {
       const code = errorCode(caught)
       if (code && terminal.has(code)) clearPendingSessionToken(token)
-      return fail(messages[code ?? ''] ?? GENERIC_ERROR)
+      return fail(describeError(caught))
     }
     // Committed. The pending secret stays until the cookie provably holds it,
     // so a retry re-enters the idempotent path instead of burning the link.
-    if (!writeSessionCookie(secret)) return fail(COOKIES_BLOCKED)
+    try {
+      await persist({ data: { sessionToken: secret } })
+    } catch {
+      return fail(NOT_SAVED)
+    }
+    if (readCookie(SESSION_COOKIE) !== secret) return fail(COOKIES_BLOCKED)
     clearPendingSessionToken(token)
     await router.invalidate()
     await navigate({ to: '/' })
+    return true
+  }
+
+  return { join, busy, error }
+}
+
+function ClaimForm({
+  token,
+  invite,
+  sessionToken,
+  onJoinStart,
+  onJoinFail,
+}: {
+  token: string
+  invite: AvailableInvite
+  sessionToken: string | null
+  onJoinStart: () => void
+  onJoinFail: () => void
+}) {
+  const { join, busy, error } = useJoin(token)
+  const [name, setName] = useState(
+    invite.kind === 'new' ? (invite.label ?? '') : invite.name,
+  )
+
+  async function submit() {
+    onJoinStart()
+    const joined = await join(invite.kind === 'new' ? name : undefined)
+    if (!joined) onJoinFail()
   }
 
   return (
@@ -153,7 +192,7 @@ function ClaimForm({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault()
-          void join()
+          void submit()
         }}
       >
         {invite.kind === 'new' && (
@@ -173,7 +212,7 @@ function ClaimForm({
           type="submit"
           disabled={busy || (invite.kind === 'new' && !name.trim())}
         >
-          {busy ? 'Joining…' : 'Join'}
+          {busy ? 'Joining…' : sessionToken ? 'Switch and join' : 'Join'}
         </Button>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </form>
@@ -196,5 +235,44 @@ function SignedInNotice({ sessionToken }: { sessionToken: string }) {
         </Link>
       </AlertDescription>
     </Alert>
+  )
+}
+
+function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
+  const { join, busy, error } = useJoin(token)
+  // sessionStorage is client-only; decide after hydration to avoid a mismatch.
+  const [pending, setPending] = useState(false)
+  useEffect(() => setPending(hasPendingSessionToken(token)), [token])
+
+  if (mine) {
+    return (
+      <Screen
+        title="You're in"
+        description="This link was used on this browser — you're signed in."
+      >
+        <Button asChild>
+          <Link to="/">Open the app</Link>
+        </Button>
+      </Screen>
+    )
+  }
+  if (pending) {
+    return (
+      <Screen
+        title="Almost there"
+        description="Your last attempt to join didn't finish. Tap below to complete it."
+      >
+        <Button disabled={busy} onClick={() => void join()}>
+          {busy ? 'Joining…' : 'Finish joining'}
+        </Button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </Screen>
+    )
+  }
+  return (
+    <Screen
+      title="This link was already used"
+      description="Invite links work once. If you joined on another device or browser, ask for a new link."
+    />
   )
 }

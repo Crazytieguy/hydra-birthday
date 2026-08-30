@@ -29,6 +29,7 @@ export default defineConfig([
     '.tanstack',
     '.vercel',
     '.llms-fetch-mcp',
+    'scratch',
     '.claude/scripts',
     'eslint.config.js',
     'prettier.config.js',

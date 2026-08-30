@@ -2,7 +2,13 @@ import { ConvexError, v } from 'convex/values'
 import { internalMutation, mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
-import { adminMutation, adminQuery, sessionMutation } from './lib/auth'
+import {
+  adminMutation,
+  adminQuery,
+  findSessionUser,
+  sessionMutation,
+} from './lib/auth'
+import { deleteSessions, insertSession } from './lib/sessions'
 import { MIN_SESSION_TOKEN_LENGTH, hashToken, newToken } from './lib/tokens'
 import { normalizeName } from './users'
 
@@ -16,13 +22,22 @@ async function findInvite(ctx: QueryCtx, token: string) {
 
 // What an invite page shows before the guest taps "Join". Public by design:
 // the token itself is the secret. Reading never consumes the invite, so link
-// previews (Signal, WhatsApp, Partiful) can't burn it.
+// previews (Signal, WhatsApp, Partiful) can't burn it. `sessionToken` (the
+// browser's current cookie, if any) only serves to recognise the link's owner.
 export const peek = query({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
+  args: { token: v.string(), sessionToken: v.optional(v.string()) },
+  handler: async (ctx, { token, sessionToken }) => {
     const invite = await findInvite(ctx, token)
     if (!invite) return { status: 'invalid' as const }
-    if (invite.claimedAt !== undefined) return { status: 'claimed' as const }
+    const viewer = sessionToken
+      ? await findSessionUser(ctx, sessionToken)
+      : null
+    if (invite.claimedAt !== undefined) {
+      return {
+        status: 'claimed' as const,
+        mine: viewer !== null && viewer.user._id === invite.claimedByUserId,
+      }
+    }
     if (invite.forUserId) {
       const user = await ctx.db.get('users', invite.forUserId)
       if (!user) return { status: 'invalid' as const }
@@ -30,6 +45,7 @@ export const peek = query({
         status: 'available' as const,
         kind: 'existing' as const,
         name: user.name,
+        mine: viewer !== null && viewer.user._id === user._id,
       }
     }
     return {
@@ -41,9 +57,10 @@ export const peek = query({
 })
 
 // Consume a one-time invite and bind the caller's browser to an account.
-// The browser generates `sessionToken` (and keeps it until this succeeds), so
-// a retry after a lost response is a no-op instead of a burned link. Convex
-// serializes mutations: two devices racing on one link can't both win.
+// The browser generates `sessionToken` (and keeps it until the cookie is
+// stored), so a retry after a lost response is a no-op instead of a burned
+// link. Convex serializes mutations: two devices racing on one link can't
+// both win.
 export const claim = mutation({
   args: {
     token: v.string(),
@@ -73,6 +90,7 @@ export const claim = mutation({
       const existing = await ctx.db.get('users', invite.forUserId)
       if (!existing) throw new ConvexError({ code: 'INVALID_INVITE' as const })
       userId = existing._id
+      if (invite.replacesSessions) await deleteSessions(ctx, userId)
     } else {
       userId = await ctx.db.insert('users', {
         name: normalizeName(name ?? invite.label ?? ''),
@@ -80,7 +98,7 @@ export const claim = mutation({
       })
     }
 
-    await ctx.db.insert('sessions', { userId, tokenHash })
+    await insertSession(ctx, userId, tokenHash)
     await ctx.db.patch('invites', invite._id, {
       claimedAt: Date.now(),
       claimedByUserId: userId,
@@ -132,34 +150,49 @@ export const createInternal = internalMutation({
   handler: async (ctx, args) => await mint(ctx, args),
 })
 
+// A link into an existing account. Only one unclaimed one exists per user at
+// a time: minting a new one forgets the previous.
 async function mintForUser(
   ctx: MutationCtx,
   userId: Id<'users'>,
   createdByUserId: Id<'users'>,
+  replacesSessions: boolean,
 ) {
   const user = await ctx.db.get('users', userId)
   if (!user) throw new ConvexError({ code: 'NOT_FOUND' as const })
+  const previous = await ctx.db
+    .query('invites')
+    .withIndex('by_forUserId', (q) => q.eq('forUserId', userId))
+    .take(100)
+  for (const invite of previous) {
+    if (invite.claimedAt === undefined)
+      await ctx.db.delete('invites', invite._id)
+  }
   const token = newToken()
   await ctx.db.insert('invites', {
     tokenHash: await hashToken(token),
     label: user.name,
     forUserId: user._id,
+    replacesSessions: replacesSessions || undefined,
     createdByUserId,
   })
   return { token }
 }
 
-// "Sign in on another device": a one-time link into the caller's own account.
+// "Use another device": a one-time link into the caller's own account.
 export const createForSelf = sessionMutation({
   args: {},
-  handler: async (ctx) => await mintForUser(ctx, ctx.user._id, ctx.user._id),
+  handler: async (ctx) =>
+    await mintForUser(ctx, ctx.user._id, ctx.user._id, false),
 })
 
 // Admin recovery for a guest who lost the browser their link was claimed on.
+// Claiming it signs the account out everywhere else, so the lost device is
+// locked out at the same moment the guest is back in.
 export const createForUser = adminMutation({
   args: { userId: v.id('users') },
   handler: async (ctx, { userId }) =>
-    await mintForUser(ctx, userId, ctx.user._id),
+    await mintForUser(ctx, userId, ctx.user._id, true),
 })
 
 export const list = adminQuery({
@@ -174,7 +207,11 @@ export const list = adminQuery({
         return {
           _id: invite._id,
           label: invite.label ?? null,
-          kind: invite.forUserId ? ('existing' as const) : ('new' as const),
+          kind: !invite.forUserId
+            ? ('new' as const)
+            : invite.replacesSessions
+              ? ('recovery' as const)
+              : ('device' as const),
           grantsAdmin: invite.grantsAdmin === true,
           createdAt: invite._creationTime,
           claimedAt: invite.claimedAt ?? null,

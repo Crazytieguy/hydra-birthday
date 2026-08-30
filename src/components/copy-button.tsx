@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function CopyButton({
@@ -9,20 +9,34 @@ export function CopyButton({
   text: string
   label?: string
 }) {
-  const [copied, setCopied] = useState(false)
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   return (
     <Button
       type="button"
       variant="outline"
       size="sm"
       onClick={async () => {
-        await navigator.clipboard.writeText(text)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
+        try {
+          await navigator.clipboard.writeText(text)
+          setState('copied')
+        } catch {
+          setState('failed')
+        }
+        setTimeout(() => setState('idle'), 2000)
       }}
     >
-      {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-      {copied ? 'Copied' : label}
+      {state === 'copied' ? (
+        <Check className="size-4" />
+      ) : state === 'failed' ? (
+        <X className="size-4" />
+      ) : (
+        <Copy className="size-4" />
+      )}
+      {state === 'copied'
+        ? 'Copied'
+        : state === 'failed'
+          ? 'Copy failed'
+          : label}
     </Button>
   )
 }

@@ -6,6 +6,7 @@ import {
   findSessionUser,
   sessionMutation,
 } from './lib/auth'
+import { deleteSessions } from './lib/sessions'
 
 export const NAME_MAX_LENGTH = 60
 
@@ -63,8 +64,19 @@ export const setAdmin = adminMutation({
   },
 })
 
+// Signs a guest out of every browser (a lost phone, a link that reached the
+// wrong person). Their account and name survive; a recovery link gets them back.
+export const signOutEverywhere = adminMutation({
+  args: { userId: v.id('users') },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get('users', userId)
+    if (!user) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    return await deleteSessions(ctx, userId)
+  },
+})
+
 // Escape hatch when no admin can reach the admin page, e.g. from the dashboard
-// or `bunx convex run users:setAdminInternal '{"userId":"...","isAdmin":true}'`.
+// or `bunx convex run users:setAdminInternal '{"userId":"...","isAdmin":true}' --prod`.
 export const setAdminInternal = internalMutation({
   args: { userId: v.id('users'), isAdmin: v.boolean() },
   handler: async (ctx, { userId, isAdmin }) => {

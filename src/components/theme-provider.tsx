@@ -28,6 +28,14 @@ function getThemeScript(storageKey: string, defaultTheme: Theme) {
   return `(function(){try{var t=localStorage.getItem(${key});if(t!=='light'&&t!=='dark'&&t!=='system'){t=${fallback}}var d=matchMedia('(prefers-color-scheme: dark)').matches;var r=t==='system'?(d?'dark':'light'):t;var e=document.documentElement;e.classList.add(r);e.style.colorScheme=r}catch(e){}})();`
 }
 
+function readStored(storageKey: string): string | null {
+  try {
+    return localStorage.getItem(storageKey)
+  } catch {
+    return null
+  }
+}
+
 function applyTheme(theme: Theme) {
   const root = document.documentElement
   root.classList.remove('light', 'dark')
@@ -50,7 +58,7 @@ export function ThemeProvider({
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const stored = localStorage.getItem(storageKey)
+    const stored = readStored(storageKey)
     setThemeState(
       stored === 'light' || stored === 'dark' || stored === 'system'
         ? stored
@@ -73,7 +81,11 @@ export function ThemeProvider({
   }, [theme, mounted])
 
   const setTheme = (next: Theme) => {
-    localStorage.setItem(storageKey, next)
+    try {
+      localStorage.setItem(storageKey, next)
+    } catch {
+      // Storage blocked: the choice lasts for this page view only.
+    }
     setThemeState(next)
   }
 

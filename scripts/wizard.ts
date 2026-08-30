@@ -39,10 +39,11 @@ function run(cmd: string, args: string[], input?: string) {
 const sh = (cmd: string, args: string[]) => run(cmd, args).out
 function must(cmd: string, args: string[], input?: string) {
   const result = run(cmd, args, input)
-  if (result.code !== 0)
+  if (result.code !== 0) {
     throw new Error(
       `${cmd} ${args.join(' ')} failed:\n${result.err || result.out}`,
     )
+  }
   return result.out
 }
 function vercelApi<T>(path: string): T | null {
@@ -56,6 +57,7 @@ function vercelApi<T>(path: string): T | null {
 }
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const open = (url: string) => run('open', [url])
+const stripDot = (host: string) => host.replace(/\.$/, '')
 
 async function main() {
   console.log(`${PROJECT} setup wizard`)
@@ -66,8 +68,9 @@ async function main() {
     ['vercel', ['whoami']],
     ['bunx', ['convex', 'login', 'status']],
   ] as const) {
-    if (run(cmd, [...args]).code !== 0)
+    if (run(cmd, [...args]).code !== 0) {
       throw new Error(`\`${cmd} ${args.join(' ')}\` failed — log in first.`)
+    }
   }
   ok('gh, vercel and convex are logged in')
 
@@ -101,7 +104,9 @@ async function main() {
   }
   const projectJson = JSON.parse(
     readFileSync('.vercel/project.json', 'utf8'),
-  ) as { projectId: string }
+  ) as {
+    projectId: string
+  }
   type Project = { id: string; link?: { repo?: string; org?: string } | null }
   let project = vercelApi<Project>(`/v9/projects/${projectJson.projectId}`)
   if (!project) throw new Error('could not read the Vercel project')
@@ -128,6 +133,22 @@ async function main() {
     envs
       .split('\n')
       .some((line) => line.includes('CONVEX_DEPLOY_KEY') && line.includes(env))
+  const addKey = (env: string, key: string) =>
+    must(
+      'vercel',
+      [
+        'env',
+        'add',
+        'CONVEX_DEPLOY_KEY',
+        env,
+        '--sensitive',
+        '--yes',
+        '--force',
+        '--scope',
+        VERCEL_SCOPE,
+      ],
+      key,
+    )
   if (hasKey('Production')) ok('CONVEX_DEPLOY_KEY (production)')
   else {
     const key = must('bunx', [
@@ -140,48 +161,20 @@ async function main() {
     ])
       .split('\n')
       .pop()!
-    must(
-      'vercel',
-      [
-        'env',
-        'add',
-        'CONVEX_DEPLOY_KEY',
-        'production',
-        '--sensitive',
-        '--yes',
-        '--force',
-        '--scope',
-        VERCEL_SCOPE,
-      ],
-      key,
-    )
+    addKey('production', key)
     did('minted a production deploy key and stored it on Vercel')
   }
   if (hasKey('Preview')) ok('CONVEX_DEPLOY_KEY (preview)')
   else {
-    const previewKey = await createPreviewDeployKey()
-    if (previewKey) {
-      must(
-        'vercel',
-        [
-          'env',
-          'add',
-          'CONVEX_DEPLOY_KEY',
-          'preview',
-          '--sensitive',
-          '--yes',
-          '--force',
-          '--scope',
-          VERCEL_SCOPE,
-        ],
-        previewKey,
-      )
+    const preview = await createPreviewDeployKey()
+    if ('key' in preview) {
+      addKey('preview', preview.key)
       did(
         'minted a preview deploy key: branch pushes get their own Convex preview backend',
       )
     } else {
       bad(
-        'could not mint a preview deploy key; PR/branch builds will fail at `convex deploy` until one is set (Convex dashboard → project settings → preview deploy keys)',
+        `could not mint a preview deploy key (${preview.error}); PR/branch builds will fail at \`convex deploy\` until one is set: https://dashboard.convex.dev/project/settings#preview-deploy-keys`,
       )
     }
   }
@@ -223,13 +216,14 @@ async function main() {
       'fix the build (logs opened in the browser), then re-run the wizard',
     )
   }
-  ok(`production deployment READY: https://${deployment.url}`)
+  type Domains = { domains: Array<{ name: string; verified: boolean }> }
+  const domains = () =>
+    vercelApi<Domains>(`/v9/projects/${project.id}/domains`)?.domains ?? []
+  const vercelHost = domains().find((d) => d.name.endsWith('.vercel.app'))?.name
+  ok(`production deployment READY: https://${vercelHost ?? deployment.url}`)
 
   step('Domain')
-  type Domains = { domains: Array<{ name: string; verified: boolean }> }
-  const domains =
-    vercelApi<Domains>(`/v9/projects/${project.id}/domains`)?.domains ?? []
-  if (!domains.some((d) => d.name === DOMAIN)) {
+  if (!domains().some((d) => d.name === DOMAIN)) {
     must('vercel', ['domains', 'add', DOMAIN, PROJECT, '--scope', VERCEL_SCOPE])
     did(`attached ${DOMAIN} to ${PROJECT}`)
   } else {
@@ -238,7 +232,6 @@ async function main() {
 
   step('DNS (Namecheap)')
   type Verify = {
-    misconfigured?: boolean
     recommended?: {
       records?: Array<{ type: string; name: string; value: string }>
     }
@@ -261,13 +254,20 @@ async function main() {
   } catch {
     // Older CLI output; fall back to the generic target below.
   }
-  const record = verify.recommended?.records?.find((r) => r.type === 'CNAME')
-  const target = (record?.value ?? 'cname.vercel-dns.com.').replace(/\.$/, '')
-  const host = record?.name ?? DOMAIN.replace(`.${APEX}`, '')
+  const cnames = (verify.recommended?.records ?? []).filter(
+    (r) => r.type === 'CNAME',
+  )
+  // Vercel prefers the project-specific host but also serves the generic one.
+  const accepted = new Set([
+    ...cnames.map((r) => stripDot(r.value)),
+    'cname.vercel-dns.com',
+  ])
+  const target = cnames[0] ? stripDot(cnames[0].value) : 'cname.vercel-dns.com'
+  const host = cnames[0]?.name ?? DOMAIN.replace(`.${APEX}`, '')
   const resolves = () =>
-    sh('dig', ['+short', 'CNAME', DOMAIN]).replace(/\.$/, '') === target
+    accepted.has(stripDot(sh('dig', ['+short', 'CNAME', DOMAIN])))
   if (resolves()) {
-    ok(`${DOMAIN} → ${target}`)
+    ok(`${DOMAIN} → ${stripDot(sh('dig', ['+short', 'CNAME', DOMAIN]))}`)
   } else {
     bad(`${DOMAIN} does not point at Vercel yet`)
     console.log(`
@@ -292,10 +292,11 @@ async function main() {
     rl.close()
     did('waiting for DNS to propagate (this can take a few minutes)')
     for (let attempt = 0; !resolves(); attempt++) {
-      if (attempt > 60)
+      if (attempt > 60) {
         throw new Error(
           'DNS still not updated after 15 minutes; check the record and re-run',
         )
+      }
       await sleep(15_000)
     }
     ok(`${DOMAIN} → ${target}`)
@@ -324,10 +325,11 @@ async function main() {
       url,
     ])
     if (status === '200') break
-    if (attempt > 40)
+    if (attempt > 40) {
       throw new Error(
         `${url} still returns ${status || 'no response'}; give the certificate a few more minutes and re-run`,
       )
+    }
     did(
       `waiting for ${url} (${status || 'no response'} — certificate provisioning)…`,
     )
@@ -340,7 +342,11 @@ async function main() {
   )
 }
 
-async function createPreviewDeployKey(): Promise<string | null> {
+// The CLI can only mint production keys; preview keys come from the
+// Management API, which accepts the CLI's own login token.
+async function createPreviewDeployKey(): Promise<
+  { key: string } | { error: string }
+> {
   try {
     const { accessToken } = JSON.parse(
       readFileSync(join(homedir(), '.convex', 'config.json'), 'utf8'),
@@ -349,14 +355,18 @@ async function createPreviewDeployKey(): Promise<string | null> {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     }
-    const projects = (await (
-      await fetch(
-        `https://api.convex.dev/v1/teams/${CONVEX_TEAM_ID}/list_projects`,
-        { headers },
-      )
-    ).json()) as Array<{ id: number; slug: string }>
+    const projectsResponse = await fetch(
+      `https://api.convex.dev/v1/teams/${CONVEX_TEAM_ID}/list_projects`,
+      { headers },
+    )
+    if (!projectsResponse.ok)
+      return { error: `list_projects → HTTP ${projectsResponse.status}` }
+    const projects = (await projectsResponse.json()) as Array<{
+      id: number
+      slug: string
+    }>
     const project = projects.find((p) => p.slug === PROJECT)
-    if (!project) return null
+    if (!project) return { error: `no Convex project with slug ${PROJECT}` }
     const response = await fetch(
       `https://api.convex.dev/v1/projects/${project.id}/create_preview_deploy_key`,
       {
@@ -365,13 +375,14 @@ async function createPreviewDeployKey(): Promise<string | null> {
         body: JSON.stringify({ name: 'vercel-preview' }),
       },
     )
-    if (!response.ok) return null
+    if (!response.ok)
+      return { error: `create_preview_deploy_key → HTTP ${response.status}` }
     const { previewDeployKey } = (await response.json()) as {
       previewDeployKey: string
     }
-    return previewDeployKey
-  } catch {
-    return null
+    return { key: previewDeployKey }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) }
   }
 }
 
