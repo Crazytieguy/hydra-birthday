@@ -10,6 +10,9 @@ export default defineSchema({
     name: v.string(),
     isAdmin: v.boolean(),
     joinedAt: v.optional(v.number()),
+    // Set once when the guest says they're done voting. Absence of vote rows
+    // can't distinguish "reviewed, wants none" from "never opened the screen".
+    votesConfirmedAt: v.optional(v.number()),
   }),
 
   // A browser bound to a user. The cookie holds the plaintext token; only its
@@ -41,4 +44,35 @@ export default defineSchema({
     .index('by_tokenHash', ['tokenHash'])
     .index('by_forUserId', ['forUserId'])
     .index('by_claimedByUserId', ['claimedByUserId']),
+
+  // The party programming guests vote on. Named partySessions because
+  // `sessions` is taken by auth browser sessions; UI copy still says
+  // "session". `catalogKey` is the immutable seed identity (absent for
+  // admin-created rows) so reseeding can never clobber admin edits.
+  partySessions: defineTable({
+    catalogKey: v.optional(v.string()),
+    title: v.string(),
+    description: v.optional(v.string()),
+    facilitatorIds: v.array(v.id('users')),
+    needsFacilitator: v.optional(v.boolean()),
+    hidden: v.optional(v.boolean()),
+  }).index('by_catalogKey', ['catalogKey']),
+
+  // One row per (guest, party session). No row = wouldn't attend.
+  votes: defineTable({
+    userId: v.id('users'),
+    partySessionId: v.id('partySessions'),
+    strength: v.union(v.literal('regular'), v.literal('strong')),
+  })
+    .index('by_userId_and_partySessionId', ['userId', 'partySessionId'])
+    .index('by_partySessionId', ['partySessionId']),
+
+  // One row per guest. `blockedHours` holds hour keys (lib/slots.ts) the
+  // guest crossed out; bounded by the enabled grid (~34 keys). Unconfirmed
+  // rows are missing data, not "free all weekend".
+  availability: defineTable({
+    userId: v.id('users'),
+    blockedHours: v.array(v.string()),
+    confirmedAt: v.optional(v.number()),
+  }).index('by_userId', ['userId']),
 })

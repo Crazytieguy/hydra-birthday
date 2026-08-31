@@ -9,6 +9,7 @@ import {
   findSessionUser,
   sessionMutation,
 } from './lib/auth'
+import { takeAll } from './lib/collect'
 import { userHasJoined } from './lib/joined'
 import { collapseWhitespace, normalizeName } from './lib/names'
 import { deleteSessions, insertSession } from './lib/sessions'
@@ -275,14 +276,25 @@ export const list = adminQuery({
   },
 })
 
-// Whether anything besides the invite still points at this user. Extended as
-// tables that reference users are added (votes, availability, facilitators).
+// Whether anything besides the invite still points at this user.
 async function userIsReferenced(ctx: QueryCtx, userId: Id<'users'>) {
   const session = await ctx.db
     .query('sessions')
     .withIndex('by_userId', (q) => q.eq('userId', userId))
     .first()
-  return session !== null
+  if (session) return true
+  const vote = await ctx.db
+    .query('votes')
+    .withIndex('by_userId_and_partySessionId', (q) => q.eq('userId', userId))
+    .first()
+  if (vote) return true
+  const availability = await ctx.db
+    .query('availability')
+    .withIndex('by_userId', (q) => q.eq('userId', userId))
+    .first()
+  if (availability) return true
+  const partySessions = await takeAll(ctx.db.query('partySessions'), 500)
+  return partySessions.some((s) => s.facilitatorIds.includes(userId))
 }
 
 export const revoke = adminMutation({
