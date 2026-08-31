@@ -22,7 +22,11 @@ After making a change, check the dev server logs (including Convex's) for errors
 
 There is no sign-up. Guests enter through one-time invite links (`/invite/<token>`); joining binds the browser via the `hb_session` cookie (set over HTTP by a server function — Safari caps JS-written cookies at 7 days — and refreshed on every SSR), whose token is passed as the `sessionToken` argument to every gated Convex function (`convex/lib/auth.ts`: `sessionQuery` / `sessionMutation` / `adminQuery` / `adminMutation`). Routes behind an invite live under the `_guest` pathless layout (`src/routes/_guest.tsx`), which puts `sessionToken` and `me` into route context — use `src/lib/guest.ts` (`useMe`, `useSessionQuery`, `useSessionAction`, `sessionQueryOptions` for loaders). Admins are users with `isAdmin: true`: toggle on `/admin`, mint admin invites with `bun run invite --admin`, or as a last resort `bunx convex run users:setAdminInternal '{"userId":"...","isAdmin":true}' --prod`. Admins can also mint recovery links and sign a guest out everywhere from `/admin`.
 
-Mint links with `bun run invite Alice Bob` (`--prod`, `--admin`, `--file names.txt`; prints `name<TAB>url`) or on `/admin`. The invite page never consumes a link on render (link previews must not burn them); only the Join mutation does.
+Mint links with `bun run invite Alice Bob` (`--prod`, `--admin`, `--file names.txt`; prints `name<TAB>url`) or on `/admin`. Every mint pre-creates the user row; claiming binds a browser session and renames only on first claim. The invite page never consumes a link on render (link previews must not burn them); only the Join mutation does.
+
+## Sessions, votes, availability
+
+The app's main feature: guests vote on party "sessions" (`partySessions` table — `sessions` is taken by auth) and cross out unavailable hours; organizers schedule by hand from `/admin/schedule`. The weekend grid, strong-vote target, and edit-deadline copy live in `convex/lib/slots.ts` (Friday is built but `enabled: false`). The catalog source of truth is `data/catalog.ts`, seeded create-only by `bun run seed [--prod] [--dry-run]` (reruns never clobber admin edits; new facilitator accounts get invite links, printed once). Late description/facilitator changes for already-seeded deployments: `catalog:backfillDescriptions` and `catalog:linkFacilitator`.
 
 ## Copy
 
