@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "invite": "bun scripts/invite.ts",
+    "seed": "bun scripts/seed-sessions.ts",
     "wizard": "bun scripts/wizard.ts"
   },
   "dependencies": {

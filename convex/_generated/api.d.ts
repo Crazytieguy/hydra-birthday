@@ -9,6 +9,7 @@
  */
 
 import type * as availability from "../availability.js";
+import type * as catalog from "../catalog.js";
 import type * as invites from "../invites.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_collect from "../lib/collect.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   availability: typeof availability;
+  catalog: typeof catalog;
   invites: typeof invites;
   "lib/auth": typeof lib_auth;
   "lib/collect": typeof lib_collect;
