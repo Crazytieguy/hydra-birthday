@@ -7,13 +7,23 @@ import {
 } from './lib/auth'
 import { takeAll } from './lib/collect'
 import { collapseWhitespace } from './lib/names'
-import { fnv1a } from './lib/slots'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
 export const SESSIONS_CAP = 500
+const VOTES_CAP = 20000
 
-export const myVoteQuery = (
+// FNV-1a, for per-user randomized-but-stable session ordering.
+function fnv1a(input: string): number {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return hash >>> 0
+}
+
+const myVoteQuery = (
   ctx: QueryCtx,
   userId: Id<'users'>,
   partySessionId: Id<'partySessions'>,
@@ -38,7 +48,20 @@ async function facilitatorNames(ctx: QueryCtx, session: Doc<'partySessions'>) {
 export const list = sessionQuery({
   args: {},
   handler: async (ctx) => {
-    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    const [all, myVoteRows] = await Promise.all([
+      takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
+      takeAll(
+        ctx.db
+          .query('votes')
+          .withIndex('by_userId_and_partySessionId', (q) =>
+            q.eq('userId', ctx.user._id),
+          ),
+        SESSIONS_CAP,
+      ),
+    ])
+    const myVotes = new Map(
+      myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
+    )
     const sessions = await Promise.all(
       all
         .filter((session) => session.hidden !== true)
@@ -48,9 +71,7 @@ export const list = sessionQuery({
           description: session.description ?? null,
           facilitatorNames: await facilitatorNames(ctx, session),
           needsFacilitator: session.needsFacilitator === true,
-          myVote:
-            (await myVoteQuery(ctx, ctx.user._id, session._id))?.strength ??
-            null,
+          myVote: myVotes.get(session._id) ?? null,
         })),
     )
     const order = (id: Id<'partySessions'>) => fnv1a(`${ctx.user._id}:${id}`)
@@ -132,30 +153,32 @@ async function validateEdit(
 export const adminList = adminQuery({
   args: {},
   handler: async (ctx) => {
-    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    const [all, votes] = await Promise.all([
+      takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
+      takeAll(ctx.db.query('votes'), VOTES_CAP),
+    ])
+    const counts = new Map<
+      Id<'partySessions'>,
+      { regular: number; strong: number }
+    >()
+    for (const vote of votes) {
+      const count = counts.get(vote.partySessionId) ?? { regular: 0, strong: 0 }
+      count[vote.strength]++
+      counts.set(vote.partySessionId, count)
+    }
     return await Promise.all(
-      all.map(async (session) => {
-        const votes = await takeAll(
-          ctx.db
-            .query('votes')
-            .withIndex('by_partySessionId', (q) =>
-              q.eq('partySessionId', session._id),
-            ),
-          2000,
-        )
-        return {
-          _id: session._id,
-          catalogKey: session.catalogKey ?? null,
-          title: session.title,
-          description: session.description ?? null,
-          facilitatorIds: session.facilitatorIds,
-          facilitatorNames: await facilitatorNames(ctx, session),
-          needsFacilitator: session.needsFacilitator === true,
-          hidden: session.hidden === true,
-          regularVotes: votes.filter((v_) => v_.strength === 'regular').length,
-          strongVotes: votes.filter((v_) => v_.strength === 'strong').length,
-        }
-      }),
+      all.map(async (session) => ({
+        _id: session._id,
+        catalogKey: session.catalogKey ?? null,
+        title: session.title,
+        description: session.description ?? null,
+        facilitatorIds: session.facilitatorIds,
+        facilitatorNames: await facilitatorNames(ctx, session),
+        needsFacilitator: session.needsFacilitator === true,
+        hidden: session.hidden === true,
+        regularVotes: counts.get(session._id)?.regular ?? 0,
+        strongVotes: counts.get(session._id)?.strong ?? 0,
+      })),
     )
   },
 })

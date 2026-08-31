@@ -1,7 +1,11 @@
 import { useRef, useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { dayHourKeys, enabledDays } from '../../../convex/lib/slots'
+import {
+  EDIT_DEADLINE_LABEL,
+  enabledDays,
+  hourKey,
+} from '../../../convex/lib/slots'
 import { Button } from '@/components/ui/button'
 import { ErrorText } from '@/components/screens'
 import {
@@ -123,7 +127,7 @@ function AvailabilityPage() {
             const cells = days.map((day) => {
               const hour = day.startHour + i
               return hour < day.endHour
-                ? { day, key: dayHourKeys(day)[i] }
+                ? { day, key: hourKey(day.date, hour) }
                 : null
             })
             const label = cells.find(Boolean)
@@ -183,7 +187,7 @@ function AvailabilityPage() {
       <div className="space-y-2">
         {confirmed ? (
           <p className="text-muted-foreground text-sm">
-            Confirmed. You can keep editing until Tuesday Sep 8.
+            Confirmed. You can keep editing until {EDIT_DEADLINE_LABEL}.
           </p>
         ) : (
           <Button

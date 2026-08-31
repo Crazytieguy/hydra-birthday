@@ -37,6 +37,20 @@ const addSession = (
 const listFor = async (t: T, sessionToken: string) =>
   await t.query(api.partySessions.list, { sessionToken })
 
+async function adminSetup() {
+  const t = convexTest(schema, modules)
+  const [invite] = await t.mutation(internal.invites.createInternal, {
+    labels: ['Yoav'],
+    grantsAdmin: true,
+  })
+  const adminToken = newToken()
+  await t.mutation(api.invites.claim, {
+    token: invite.token,
+    sessionToken: adminToken,
+  })
+  return { t, adminToken }
+}
+
 const failsWith = (code: string) => expect.objectContaining({ data: { code } })
 
 describe('voting', () => {
@@ -205,20 +219,6 @@ describe('takeAll', () => {
 })
 
 describe('admin catalog management', () => {
-  async function adminSetup() {
-    const t = convexTest(schema, modules)
-    const [invite] = await t.mutation(internal.invites.createInternal, {
-      labels: ['Yoav'],
-      grantsAdmin: true,
-    })
-    const adminToken = newToken()
-    await t.mutation(api.invites.claim, {
-      token: invite.token,
-      sessionToken: adminToken,
-    })
-    return { t, adminToken }
-  }
-
   test('non-admins are refused on every admin surface', async () => {
     const { t } = await adminSetup()
     const { sessionToken } = await joinAs(t, 'Guest')
@@ -354,17 +354,7 @@ describe('admin catalog management', () => {
 
 describe('revoke and the new tables', () => {
   test('refuses to delete a never-joined user who facilitates a session', async () => {
-    const t = convexTest(schema, modules)
-    const [adminInvite] = await t.mutation(internal.invites.createInternal, {
-      labels: ['Yoav'],
-      grantsAdmin: true,
-    })
-    const adminToken = newToken()
-    await t.mutation(api.invites.claim, {
-      token: adminInvite.token,
-      sessionToken: adminToken,
-    })
-
+    const { t, adminToken } = await adminSetup()
     const [facilitator] = await t.mutation(internal.invites.createInternal, {
       labels: ['Collin'],
     })

@@ -210,7 +210,6 @@ async function mintForUser(
     label: user.name,
     forUserId: user._id,
     replacesSessions: replacesSessions || undefined,
-    grantsAdmin: user.isAdmin ? true : undefined,
     createdByUserId,
   })
   return { token }
@@ -328,8 +327,8 @@ export const revoke = adminMutation({
 export const migrateToForUser = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db.query('users').take(1000)
-    const invites = await ctx.db.query('invites').take(1000)
+    const users = await takeAll(ctx.db.query('users'), 1000)
+    const invites = await takeAll(ctx.db.query('invites'), 1000)
 
     for (const user of users) {
       if (user.joinedAt !== undefined) continue
@@ -359,8 +358,8 @@ export const migrateToForUser = internalMutation({
       }
     }
 
-    const invitesAfter = await ctx.db.query('invites').take(1000)
-    const usersAfter = await ctx.db.query('users').take(1000)
+    const invitesAfter = await takeAll(ctx.db.query('invites'), 1000)
+    const usersAfter = await takeAll(ctx.db.query('users'), 1000)
     return {
       invitesMissingForUserId: invitesAfter.filter((i) => !i.forUserId).length,
       joinedUsersMissingJoinedAt: usersAfter.filter(

@@ -10,6 +10,7 @@ import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
 import appCss from '../styles.css?url'
+import { HEART } from '@/components/heart-vote'
 import { readSessionToken } from '@/lib/session'
 
 interface RouterContext {
@@ -68,7 +69,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               aria-hidden="true"
               className="fill-primary"
             >
-              <path d="M12 20.5C7.5 16.5 4 13.6 4 9.9 4 7.4 6 5.5 8.4 5.5c1.4 0 2.7.7 3.6 1.8.9-1.1 2.2-1.8 3.6-1.8C18 5.5 20 7.4 20 9.9c0 3.7-3.5 6.6-8 10.6z" />
+              <path d={HEART} />
             </svg>
           </Link>
         </header>

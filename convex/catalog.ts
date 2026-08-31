@@ -13,8 +13,10 @@ import { SESSIONS_CAP } from './partySessions'
 // belong to the admin UI (or targeted `bunx convex run` patches by id).
 
 async function analyze(ctx: QueryCtx) {
-  const users = await takeAll(ctx.db.query('users'), 1000)
-  const sessions = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+  const [users, sessions] = await Promise.all([
+    takeAll(ctx.db.query('users'), 1000),
+    takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
+  ])
   const seededKeys = new Set(
     sessions.flatMap((s) => (s.catalogKey ? [s.catalogKey] : [])),
   )

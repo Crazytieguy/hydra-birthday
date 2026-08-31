@@ -354,13 +354,31 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
   const signOut = useSessionAction(api.users.signOutEverywhere)
   const [link, setLink] = useState<string | null>(null)
 
-  async function recover() {
-    const minted = await createForUser.run({ userId: user._id })
-    if (minted) setLink(inviteUrl(minted.token))
-  }
+  // The joined and not-yet-joined states each mint one kind of link; only the
+  // wording and the mutation differ.
+  const mintLink =
+    user.joinedAt === null
+      ? {
+          action: reissue,
+          button: 'Replace invite link',
+          copyLabel: 'Copy new link',
+          title: `Replace ${user.name}'s invite link?`,
+          description:
+            'Their current link stops working, and you get a fresh one to send instead.',
+          confirm: 'Replace',
+        }
+      : {
+          action: createForUser,
+          button: 'Recovery link',
+          copyLabel: 'Copy recovery link',
+          title: `Make a recovery link for ${user.name}?`,
+          description:
+            'The link signs one new device into their account. Using it signs every other device out, including the one they lost.',
+          confirm: 'Make link',
+        }
 
-  async function replaceInvite() {
-    const minted = await reissue.run({ userId: user._id })
+  async function mint() {
+    const minted = await mintLink.action.run({ userId: user._id })
     if (minted) setLink(inviteUrl(minted.token))
   }
 
@@ -398,59 +416,37 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
         )}
       </TableCell>
       <TableCell className="space-x-1 text-right whitespace-nowrap">
-        {user.joinedAt === null ? (
-          link ? (
-            <CopyButton text={link} label="Copy new link" />
-          ) : (
-            <Confirm
-              trigger={
-                <Button variant="ghost" size="sm" disabled={reissue.busy}>
-                  Replace invite link
-                </Button>
-              }
-              title={`Replace ${user.name}'s invite link?`}
-              description="Their current link stops working, and you get a fresh one to send instead."
-              action="Replace"
-              onConfirm={() => void replaceInvite()}
-            />
-          )
+        {link ? (
+          <CopyButton text={link} label={mintLink.copyLabel} />
         ) : (
-          <>
-            {link ? (
-              <CopyButton text={link} label="Copy recovery link" />
-            ) : (
-              <Confirm
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={createForUser.busy}
-                  >
-                    Recovery link
-                  </Button>
-                }
-                title={`Make a recovery link for ${user.name}?`}
-                description="The link signs one new device into their account. Using it signs every other device out, including the one they lost."
-                action="Make link"
-                onConfirm={() => void recover()}
-              />
-            )}
-            <Confirm
-              trigger={
-                <Button variant="ghost" size="sm" disabled={signOut.busy}>
-                  Sign out
-                </Button>
-              }
-              title={`Sign ${user.name} out everywhere?`}
-              description={
-                isMe
-                  ? "That includes this browser. You'll need a new link to get back in."
-                  : 'Every device they joined with stops working right away. Their account and name stay, and a recovery link gets them back in.'
-              }
-              action="Sign out"
-              onConfirm={() => void signOut.run({ userId: user._id })}
-            />
-          </>
+          <Confirm
+            trigger={
+              <Button variant="ghost" size="sm" disabled={mintLink.action.busy}>
+                {mintLink.button}
+              </Button>
+            }
+            title={mintLink.title}
+            description={mintLink.description}
+            action={mintLink.confirm}
+            onConfirm={() => void mint()}
+          />
+        )}
+        {user.joinedAt !== null && (
+          <Confirm
+            trigger={
+              <Button variant="ghost" size="sm" disabled={signOut.busy}>
+                Sign out
+              </Button>
+            }
+            title={`Sign ${user.name} out everywhere?`}
+            description={
+              isMe
+                ? "That includes this browser. You'll need a new link to get back in."
+                : 'Every device they joined with stops working right away. Their account and name stay, and a recovery link gets them back in.'
+            }
+            action="Sign out"
+            onConfirm={() => void signOut.run({ userId: user._id })}
+          />
         )}
       </TableCell>
     </TableRow>

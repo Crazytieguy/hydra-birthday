@@ -127,6 +127,10 @@ function Sessions({ data }: { data: Raw }) {
   const availabilityByUser = new Map(
     data.availability.map((row) => [row.userId, row]),
   )
+  // Set-based lookups: the heatmap tests person×hour for every session.
+  const blockedByUser = new Map(
+    data.availability.map((row) => [row.userId, new Set(row.blockedHours)]),
+  )
 
   const sessions = data.sessions
     .map((session) => {
@@ -171,9 +175,7 @@ function Sessions({ data }: { data: Raw }) {
           (id) => availabilityByUser.get(id)?.confirmedAt == null,
         )
         const availableAt = (hour: string) =>
-          confirmed.filter(
-            (id) => !availabilityByUser.get(id)!.blockedHours.includes(hour),
-          )
+          confirmed.filter((id) => !blockedByUser.get(id)!.has(hour))
 
         return (
           <Card key={session._id}>
@@ -214,14 +216,10 @@ function Sessions({ data }: { data: Raw }) {
                         {dayHourKeys(day).map((hour) => {
                           const available = availableAt(hour)
                           const facilitatorsAvailable =
-                            session.facilitatorIds.length === 0 ||
                             session.facilitatorIds.every(
                               (id) =>
                                 availabilityByUser.get(id)?.confirmedAt ==
-                                  null ||
-                                available.some(
-                                  (availableId) => availableId === id,
-                                ),
+                                  null || available.includes(id),
                             )
                           const fraction =
                             confirmed.length > 0

@@ -55,12 +55,6 @@ export const enabledHourKeys = () =>
 // UI warns past it; nothing ever blocks.
 export const STRONG_VOTE_TARGET = 4
 
-// FNV-1a, for per-user randomized-but-stable session ordering.
-export function fnv1a(input: string): number {
-  let hash = 0x811c9dc5
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  return hash >>> 0
-}
+// Guests can edit votes and availability until this (shown in copy; nothing
+// enforces it — the organizers just start scheduling).
+export const EDIT_DEADLINE_LABEL = 'Tuesday Sep 8'

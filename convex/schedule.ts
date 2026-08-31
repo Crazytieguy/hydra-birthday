@@ -1,5 +1,6 @@
 import { adminQuery } from './lib/auth'
 import { takeAll } from './lib/collect'
+import { userJoinedAt } from './lib/joined'
 import { SESSIONS_CAP } from './partySessions'
 
 // Everything the organizers need to schedule by hand, as raw joined rows.
@@ -9,26 +10,18 @@ import { SESSIONS_CAP } from './partySessions'
 export const raw = adminQuery({
   args: {},
   handler: async (ctx) => {
-    const users = await takeAll(ctx.db.query('users'), 1000)
-    const sessions = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
-    const votes = await takeAll(ctx.db.query('votes'), 20000)
-    const availability = await takeAll(ctx.db.query('availability'), 1000)
+    const [users, sessions, votes, availability] = await Promise.all([
+      takeAll(ctx.db.query('users'), 1000),
+      takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
+      takeAll(ctx.db.query('votes'), 20000),
+      takeAll(ctx.db.query('availability'), 1000),
+    ])
     return {
       users: await Promise.all(
         users.map(async (user) => ({
           _id: user._id,
           name: user.name,
-          joinedAt:
-            user.joinedAt ??
-            (
-              await ctx.db
-                .query('invites')
-                .withIndex('by_claimedByUserId', (q) =>
-                  q.eq('claimedByUserId', user._id),
-                )
-                .first()
-            )?.claimedAt ??
-            null,
+          joinedAt: await userJoinedAt(ctx, user),
           votesConfirmedAt: user.votesConfirmedAt ?? null,
         })),
       ),

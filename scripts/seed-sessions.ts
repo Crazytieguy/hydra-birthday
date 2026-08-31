@@ -6,10 +6,8 @@
 // Create-only: sessions already seeded are skipped, so rerunning is safe.
 // Facilitators without accounts get one plus an invite link, printed as
 // "name<TAB>url" like `bun run invite`. Always --dry-run first on prod.
-import { spawnSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
-import { invitePath } from '../src/lib/invites'
-import { siteOrigin } from './config'
+import { convexRunJson, printInviteLinks, siteOrigin } from './config'
 
 const USAGE = `usage: bun run seed [--prod] [--dry-run] [--base <url>]
   --prod        seed the production deployment (default: your dev deployment)
@@ -40,19 +38,12 @@ if (flags.help) {
   process.exit(0)
 }
 
-function convexRun(fn: string) {
-  const args = ['convex', 'run', fn]
-  if (flags.prod) args.push('--prod')
-  const result = spawnSync('bunx', args, {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'inherit'],
-  })
-  if (result.status !== 0) process.exit(result.status ?? 1)
-  return JSON.parse(result.stdout) as unknown
-}
-
 if (flags['dry-run']) {
-  const report = convexRun('catalog:seedPreflight') as {
+  const report = convexRunJson(
+    'catalog:seedPreflight',
+    undefined,
+    flags.prod,
+  ) as {
     wouldCreateSessions: Array<string>
     wouldCreateFacilitators: Array<string>
     ambiguousFacilitators: Array<string>
@@ -73,7 +64,7 @@ if (flags['dry-run']) {
     process.exit(1)
   }
 } else {
-  const result = convexRun('catalog:seed') as {
+  const result = convexRunJson('catalog:seed', undefined, flags.prod) as {
     createdSessions: Array<string>
     alreadySeeded: number
     newFacilitatorLinks: Array<{ label: string; token: string }>
@@ -84,7 +75,6 @@ if (flags['dry-run']) {
   )
   if (result.newFacilitatorLinks.length > 0) {
     console.log('new facilitator invite links (printed only once):')
-    for (const { label, token } of result.newFacilitatorLinks)
-      console.log(`${label}\t${origin}${invitePath(token)}`)
+    printInviteLinks(result.newFacilitatorLinks, origin)
   }
 }

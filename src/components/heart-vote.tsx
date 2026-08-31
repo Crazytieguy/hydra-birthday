@@ -1,4 +1,5 @@
-const HEART =
+// The one heart shape everywhere: vote buttons and the header logo.
+export const HEART =
   'M12 20.5C7.5 16.5 4 13.6 4 9.9 4 7.4 6 5.5 8.4 5.5c1.4 0 2.7.7 3.6 1.8.9-1.1 2.2-1.8 3.6-1.8C18 5.5 20 7.4 20 9.9c0 3.7-3.5 6.6-8 10.6z'
 
 export type Vote = 'regular' | 'strong' | null

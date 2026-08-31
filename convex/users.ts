@@ -6,6 +6,7 @@ import {
   findSessionUser,
   sessionMutation,
 } from './lib/auth'
+import { userJoinedAt } from './lib/joined'
 import { normalizeName } from './lib/names'
 import { deleteSessions } from './lib/sessions'
 
@@ -37,19 +38,7 @@ export const list = adminQuery({
         name: user.name,
         isAdmin: user.isAdmin,
         createdAt: user._creationTime,
-        // Pre-migration users lack `joinedAt`; fall back to their earliest
-        // claimed invite so the admin page never mislabels them "not joined".
-        joinedAt:
-          user.joinedAt ??
-          (
-            await ctx.db
-              .query('invites')
-              .withIndex('by_claimedByUserId', (q) =>
-                q.eq('claimedByUserId', user._id),
-              )
-              .first()
-          )?.claimedAt ??
-          null,
+        joinedAt: await userJoinedAt(ctx, user),
       })),
     )
   },

@@ -6,11 +6,9 @@
 // Names come from arguments, --file (one per line), or stdin. Prints one
 // "name<TAB>url" line per invite, ready to paste into a spreadsheet or a
 // message. Links are only ever printed once — they are stored hashed.
-import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { invitePath } from '../src/lib/invites'
-import { siteOrigin } from './config'
+import { convexRunJson, printInviteLinks, siteOrigin } from './config'
 
 const USAGE = `usage: bun run invite [--prod] [--admin] [--base <url>] [--file names.txt] [name ...]
   --prod        mint on the production deployment (default: your dev deployment)
@@ -53,22 +51,9 @@ if (labels.length === 0) {
 }
 
 const origin = (flags.base ?? siteOrigin(flags.prod)).replace(/\/$/, '')
-const args = [
-  'convex',
-  'run',
+const minted = convexRunJson(
   'invites:createInternal',
-  JSON.stringify({ labels, grantsAdmin: flags.admin }),
-]
-if (flags.prod) args.push('--prod')
-// `convex run` prints its return value as JSON when stdout is not a TTY.
-const result = spawnSync('bunx', args, {
-  encoding: 'utf8',
-  stdio: ['ignore', 'pipe', 'inherit'],
-})
-if (result.status !== 0) process.exit(result.status ?? 1)
-const minted = JSON.parse(result.stdout) as Array<{
-  label: string
-  token: string
-}>
-for (const { label, token } of minted)
-  console.log(`${label}\t${origin}${invitePath(token)}`)
+  { labels, grantsAdmin: flags.admin },
+  flags.prod,
+) as Array<{ label: string; token: string }>
+printInviteLinks(minted, origin)

@@ -4,7 +4,7 @@ import { enabledHourKeys } from './lib/slots'
 import type { QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 
-export const myAvailabilityQuery = (ctx: QueryCtx, userId: Id<'users'>) =>
+const myAvailabilityQuery = (ctx: QueryCtx, userId: Id<'users'>) =>
   ctx.db
     .query('availability')
     .withIndex('by_userId', (q) => q.eq('userId', userId))

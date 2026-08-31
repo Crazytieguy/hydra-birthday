@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { STRONG_VOTE_TARGET } from '../../../convex/lib/slots'
+import {
+  EDIT_DEADLINE_LABEL,
+  STRONG_VOTE_TARGET,
+} from '../../../convex/lib/slots'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { HeartVote, nextVote } from '@/components/heart-vote'
@@ -82,7 +85,8 @@ function SessionsPage() {
           </Button>
         ) : (
           <p className="text-muted-foreground text-sm">
-            Votes are in. You can keep changing them until Tuesday Sep 8.
+            Votes are in. You can keep changing them until {EDIT_DEADLINE_LABEL}
+            .
           </p>
         )}
         <ErrorText message={confirm.error} />

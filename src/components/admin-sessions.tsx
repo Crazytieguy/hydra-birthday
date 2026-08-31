@@ -196,19 +196,11 @@ function SessionDialog({
       needsFacilitator: form.needsFacilitator,
       hidden: form.hidden,
     }
-    const ok =
+    const result =
       form.partySessionId === null
-        ? await create.run(args).then(
-            (id) => id !== undefined,
-            () => false,
-          )
-        : await update
-            .run({ ...args, partySessionId: form.partySessionId })
-            .then(
-              (result) => result !== undefined,
-              () => false,
-            )
-    if (ok) onClose()
+        ? await create.run(args)
+        : await update.run({ ...args, partySessionId: form.partySessionId })
+    if (result !== undefined) onClose()
   }
 
   return (
