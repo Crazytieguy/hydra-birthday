@@ -46,9 +46,9 @@ function Home() {
   const done = doneVoting && doneAvailability
 
   return (
-    <div className="space-y-8 py-8">
+    <div className="mx-auto max-w-2xl space-y-8 py-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Hi, {me.name}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Hi, {me.name}</h1>
         {done ? (
           <p className="text-muted-foreground">
             Thanks! Feel free to message Yoav, Libi, or Guy if you have an idea
@@ -68,39 +68,108 @@ function Home() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link to="/sessions" className="block">
-          <Card className="h-full transition-colors hover:bg-accent/50">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Sessions
-                {doneVoting && <Badge variant="secondary">done</Badge>}
-              </CardTitle>
-              <CardDescription>
-                {voteCount === 0
-                  ? 'Vote for what you want to happen.'
-                  : `${voteCount} vote${voteCount === 1 ? '' : 's'} in so far.`}
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link to="/availability" className="block">
-          <Card className="h-full transition-colors hover:bg-accent/50">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                When can you come?
-                {doneAvailability && <Badge variant="secondary">done</Badge>}
-              </CardTitle>
-              <CardDescription>
-                Cross out the hours you can't make.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-      </div>
+      {done ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Link to="/sessions" className="block">
+            <Card className="hover:bg-accent/50 h-full transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  Sessions
+                  <Badge variant="secondary">done</Badge>
+                </CardTitle>
+                <CardDescription>
+                  {voteCount} vote{voteCount === 1 ? '' : 's'} in so far.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+          <Link to="/availability" className="block">
+            <Card className="hover:bg-accent/50 h-full transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  When can you come?
+                  <Badge variant="secondary">done</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Cross out the hours you can't make.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <Step
+            number={1}
+            title="Pick your sessions"
+            detail={
+              voteCount === 0
+                ? 'Vote for what you want to happen.'
+                : `${voteCount} vote${voteCount === 1 ? '' : 's'} in so far.`
+            }
+            to="/sessions"
+            state={doneVoting ? 'done' : 'current'}
+          />
+          <Step
+            number={2}
+            title="When can you come?"
+            detail="Cross out the hours you can't make."
+            to="/availability"
+            state={doneVoting ? 'current' : 'locked'}
+          />
+        </div>
+      )}
 
       <DeviceLinkCard />
     </div>
+  )
+}
+
+// One row of the first-pass flow: votes first, then hours; free navigation
+// unlocks once both are confirmed (the cards above replace this).
+function Step({
+  number,
+  title,
+  detail,
+  to,
+  state,
+}: {
+  number: number
+  title: string
+  detail: string
+  to: '/sessions' | '/availability'
+  state: 'done' | 'current' | 'locked'
+}) {
+  const body = (
+    <div className="flex items-center gap-4 py-4">
+      <div
+        className={`font-display flex size-9 shrink-0 items-center justify-center rounded-full border text-lg font-bold ${
+          state === 'current'
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-border text-muted-foreground'
+        }`}
+      >
+        {state === 'done' ? '✓' : number}
+      </div>
+      <div className="min-w-0 flex-grow">
+        <h2
+          className={`font-display text-lg font-bold ${state === 'locked' ? 'text-muted-foreground' : ''}`}
+        >
+          {title}
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          {state === 'locked' ? 'After the votes.' : detail}
+        </p>
+      </div>
+      {state !== 'locked' && <span className="text-muted-foreground">→</span>}
+    </div>
+  )
+  if (state === 'locked')
+    return <div className="border-border border-b opacity-70">{body}</div>
+  return (
+    <Link to={to} className="border-border hover:bg-accent/40 block border-b">
+      {body}
+    </Link>
   )
 }
 

@@ -41,8 +41,8 @@ function SchedulePage() {
   const { data } = useSessionQuery(api.schedule.raw, {})
   if (!me.isAdmin) return <Navigate to="/" replace />
   return (
-    <div className="space-y-8 py-8">
-      <h1 className="text-3xl font-semibold tracking-tight">Scheduling data</h1>
+    <div className="mx-auto max-w-5xl space-y-8 py-8">
+      <h1 className="text-3xl font-bold tracking-tight">Scheduling data</h1>
       <People data={data} />
       <Sessions data={data} />
     </div>

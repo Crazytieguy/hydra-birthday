@@ -77,9 +77,9 @@ function AdminPage() {
   // Demoted while the page is open: leave before the admin queries error out.
   if (!me.isAdmin) return <Navigate to="/" replace />
   return (
-    <div className="space-y-8 py-8">
+    <div className="mx-auto max-w-4xl space-y-8 py-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
         <Button asChild variant="outline" size="sm">
           <Link to="/schedule">Scheduling data</Link>
         </Button>

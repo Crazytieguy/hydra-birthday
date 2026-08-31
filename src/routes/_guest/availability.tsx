@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import { dayHourKeys, enabledDays } from '../../../convex/lib/slots'
@@ -19,80 +19,180 @@ export const Route = createFileRoute('/_guest/availability')({
   component: AvailabilityPage,
 })
 
+const busySlash = {
+  backgroundImage:
+    'linear-gradient(135deg, transparent 45%, var(--input) 45%, var(--input) 55%, transparent 55%)',
+}
+
 function AvailabilityPage() {
   const navigate = useNavigate()
   const { data: mine } = useSessionQuery(api.availability.mine, {})
   const save = useSessionAction(api.availability.save)
-  // Local mirror of the crossed-out set: taps feel instant, every change is
-  // saved (unconfirmed) right away, and Confirm marks the grid reviewed.
+  // Local mirror of the crossed-out set: taps and drags feel instant; the
+  // whole set is saved (unconfirmed) when the gesture ends.
   const [blocked, setBlocked] = useState(
     () => new Set(mine?.blockedHours ?? []),
   )
+  const blockedRef = useRef(blocked)
+  blockedRef.current = blocked
+  // While a paint gesture is live, every cell entered is set to this state.
+  const paintTo = useRef<boolean | null>(null)
   const confirmed = mine !== null && mine.confirmedAt !== null
+  const firstPass = !confirmed
 
-  function toggle(hour: string) {
-    const next = new Set(blocked)
-    if (next.has(hour)) next.delete(hour)
-    else next.add(hour)
+  function apply(hour: string, target: boolean) {
+    if (blockedRef.current.has(hour) === target) return
+    const next = new Set(blockedRef.current)
+    if (target) next.add(hour)
+    else next.delete(hour)
     setBlocked(next)
-    void save.run({ blockedHours: [...next], confirm: false })
   }
 
+  function persist() {
+    void save.run({ blockedHours: [...blockedRef.current], confirm: false })
+  }
+
+  function startPaint(hour: string) {
+    paintTo.current = !blockedRef.current.has(hour)
+    apply(hour, paintTo.current)
+  }
+
+  function movePaint(e: React.PointerEvent) {
+    if (paintTo.current === null) return
+    const hour = document
+      .elementFromPoint(e.clientX, e.clientY)
+      ?.closest('[data-hour]')
+      ?.getAttribute('data-hour')
+    if (hour) apply(hour, paintTo.current)
+  }
+
+  function endPaint() {
+    if (paintTo.current === null) return
+    paintTo.current = null
+    persist()
+  }
+
+  const days = enabledDays()
+  const hourCount = Math.max(...days.map((d) => d.endHour - d.startHour))
+
   return (
-    <div className="space-y-6 py-8">
+    <div className="mx-auto max-w-2xl space-y-6 py-6">
       <div className="space-y-2">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to="/">← Back</Link>
-        </Button>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <div className="flex items-baseline justify-between">
+          <Button asChild variant="ghost" size="sm" className="-ml-3">
+            <Link to="/">← Back</Link>
+          </Button>
+          {firstPass && (
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              Step 2 of 2
+            </span>
+          )}
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">
           When can you come?
         </h1>
         <p className="text-muted-foreground">
-          Cross out the hours you can't make, and we'll try to avoid scheduling
-          your voted sessions for those hours! Leaving hours open isn't taken as
-          a commitment, just information
+          Cross out the hours you can't make — tap, or drag across a range.
+          We'll try to avoid scheduling your voted sessions for those hours!
+          Leaving hours open isn't taken as a commitment, just information
         </p>
       </div>
 
-      <div className="space-y-6">
-        {enabledDays().map((day) => (
-          <div key={day.date} className="space-y-2">
-            <h2 className="font-semibold">{day.label}</h2>
-            <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
-              {dayHourKeys(day).map((hour) => {
-                const isBlocked = blocked.has(hour)
+      <div
+        className="select-none"
+        onPointerMove={movePaint}
+        onPointerUp={endPaint}
+        onPointerCancel={endPaint}
+      >
+        <div
+          className="grid gap-x-2 gap-y-1"
+          style={{
+            gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))`,
+          }}
+        >
+          <div />
+          {days.map((day) => (
+            <div
+              key={day.date}
+              className="font-display pb-1 text-center font-bold"
+            >
+              {day.label.slice(0, 3)} {Number(day.date.slice(8))}
+            </div>
+          ))}
+          {Array.from({ length: hourCount }, (_, i) => {
+            const cells = days.map((day) => {
+              const hour = day.startHour + i
+              return hour < day.endHour
+                ? { day, key: dayHourKeys(day)[i] }
+                : null
+            })
+            const label = cells.find(Boolean)
+            return [
+              <div
+                key={`label-${i}`}
+                className="text-muted-foreground flex items-center text-xs tabular-nums"
+              >
+                {label ? `${label.day.startHour + i}:00` : ''}
+              </div>,
+              ...cells.map((cell, dayIndex) => {
+                if (!cell) return <div key={`empty-${dayIndex}-${i}`} />
+                const isBlocked = blocked.has(cell.key)
                 return (
                   <button
-                    key={hour}
+                    key={cell.key}
                     type="button"
+                    data-hour={cell.key}
                     aria-pressed={isBlocked}
-                    onClick={() => toggle(hour)}
-                    className={`rounded-md border px-2 py-2 text-sm tabular-nums transition-colors ${
+                    aria-label={`${cell.day.label} ${cell.day.startHour + i}:00, ${isBlocked ? 'busy' : 'could make it'}`}
+                    className={`h-9 touch-none rounded-lg border transition-colors ${
                       isBlocked
-                        ? 'bg-muted text-muted-foreground line-through'
-                        : 'bg-background hover:bg-accent'
+                        ? 'border-border bg-muted'
+                        : 'border-border bg-card hover:border-primary/40'
                     }`}
-                  >
-                    {hour.slice(11)}:00
-                  </button>
+                    style={isBlocked ? busySlash : undefined}
+                    onPointerDown={() => startPaint(cell.key)}
+                    onClick={(e) => {
+                      // Pointer events already handled the tap; this path is
+                      // keyboard activation only.
+                      if (e.detail === 0) {
+                        apply(cell.key, !blocked.has(cell.key))
+                        persist()
+                      }
+                    }}
+                  />
                 )
-              })}
-            </div>
-          </div>
-        ))}
+              }),
+            ]
+          })}
+        </div>
+        <div className="text-muted-foreground flex items-center gap-4 pt-2 text-xs">
+          <span className="flex items-center gap-1.5">
+            <span className="bg-card border-border inline-block size-3.5 rounded-sm border" />
+            could make it
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="bg-muted border-border inline-block size-3.5 rounded-sm border"
+              style={busySlash}
+            />
+            busy
+          </span>
+        </div>
       </div>
 
       <div className="space-y-2">
         {confirmed ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Confirmed. You can keep editing until Tuesday Sep 8.
           </p>
         ) : (
           <Button
+            size="lg"
+            className="rounded-full px-8"
             disabled={save.busy}
             onClick={() =>
               void save
-                .run({ blockedHours: [...blocked], confirm: true })
+                .run({ blockedHours: [...blockedRef.current], confirm: true })
                 .then((result) => {
                   if (result !== undefined) void navigate({ to: '/' })
                 })

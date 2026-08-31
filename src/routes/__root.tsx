@@ -31,6 +31,16 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { title: 'Hydra Birthday' },
     ],
     links: [
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossOrigin: 'anonymous',
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap',
+      },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
     ],
@@ -45,12 +55,24 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-dvh">
-        <header className="mx-auto flex h-14 max-w-2xl items-center px-4">
-          <Link to="/" className="font-semibold tracking-tight">
+        <header className="mx-auto flex h-14 max-w-5xl items-center px-4">
+          <Link
+            to="/"
+            className="font-display flex items-center gap-1.5 text-lg font-bold tracking-tight"
+          >
             Hydra Birthday
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="fill-primary"
+            >
+              <path d="M12 20.5C7.5 16.5 4 13.6 4 9.9 4 7.4 6 5.5 8.4 5.5c1.4 0 2.7.7 3.6 1.8.9-1.1 2.2-1.8 3.6-1.8C18 5.5 20 7.4 20 9.9c0 3.7-3.5 6.6-8 10.6z" />
+            </svg>
           </Link>
         </header>
-        <main className="mx-auto max-w-2xl px-4 pb-16">{children}</main>
+        <main className="mx-auto w-full px-4 pb-16">{children}</main>
         <TanStackDevtools
           config={{ position: 'bottom-right' }}
           plugins={[

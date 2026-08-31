@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import { STRONG_VOTE_TARGET } from '../../../convex/lib/slots'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { HeartVote, nextVote } from '@/components/heart-vote'
 import { ErrorText } from '@/components/screens'
 import {
   sessionQueryOptions,
@@ -25,43 +25,63 @@ type SessionItem =
   (typeof api.partySessions.list._returnType)['sessions'][number]
 
 function SessionsPage() {
+  const navigate = useNavigate()
   const { data } = useSessionQuery(api.partySessions.list, {})
   const confirm = useSessionAction(api.partySessions.confirmVotes)
   const strongCount = data.sessions.filter((s) => s.myVote === 'strong').length
+  const firstPass = data.votesConfirmedAt === null
+
+  async function doneVoting() {
+    const result = await confirm.run({})
+    if (result !== undefined) void navigate({ to: '/availability' })
+  }
 
   return (
-    <div className="space-y-6 py-8">
-      <div className="space-y-2">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to="/">← Back</Link>
-        </Button>
-        <h1 className="text-3xl font-semibold tracking-tight">Sessions</h1>
+    <div className="mx-auto max-w-5xl space-y-6 py-6">
+      <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
+        <div className="flex items-baseline justify-between">
+          <Button asChild variant="ghost" size="sm" className="-ml-3">
+            <Link to="/">← Back</Link>
+          </Button>
+          {firstPass && (
+            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+              Step 1 of 2
+            </span>
+          )}
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Pick your sessions
+        </h1>
         <p className="text-muted-foreground">
           Vote for sessions you'd attend, and strong vote for sessions you'd{' '}
           <em>really</em> want to attend (aim for up to {STRONG_VOTE_TARGET})
         </p>
+        {strongCount > STRONG_VOTE_TARGET && (
+          <p className="text-primary text-sm font-bold">
+            Ideally try to stick to less than {STRONG_VOTE_TARGET + 1} strong
+            votes
+          </p>
+        )}
       </div>
 
-      {strongCount > STRONG_VOTE_TARGET && (
-        <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-          Ideally try to stick to less than {STRONG_VOTE_TARGET + 1} strong
-          votes
-        </p>
-      )}
-
-      <div className="space-y-3">
+      <div className="mx-auto max-w-2xl gap-x-12 lg:mx-0 lg:max-w-none lg:columns-2 xl:columns-3">
         {data.sessions.map((session) => (
-          <SessionCard key={session._id} session={session} />
+          <SessionRow key={session._id} session={session} />
         ))}
       </div>
 
-      <div className="space-y-2">
-        {data.votesConfirmedAt === null ? (
-          <Button disabled={confirm.busy} onClick={() => void confirm.run({})}>
+      <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
+        {firstPass ? (
+          <Button
+            size="lg"
+            className="rounded-full px-8"
+            disabled={confirm.busy}
+            onClick={() => void doneVoting()}
+          >
             Done voting
           </Button>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Votes are in. You can keep changing them until Tuesday Sep 8.
           </p>
         )}
@@ -71,80 +91,83 @@ function SessionsPage() {
   )
 }
 
-function SessionCard({ session }: { session: SessionItem }) {
+function SessionRow({ session }: { session: SessionItem }) {
   const [expanded, setExpanded] = useState(false)
   const setVote = useSessionAction(api.partySessions.setVote)
-
-  const vote = (strength: 'regular' | 'strong') =>
-    void setVote.run({
-      partySessionId: session._id,
-      // Tapping the active option again clears the vote.
-      strength: session.myVote === strength ? null : strength,
-    })
-
   const expandable = session.description !== null
+
   return (
-    <Card>
-      <CardContent className="space-y-3 py-4">
-        <button
-          type="button"
-          className="w-full text-left"
-          onClick={() => expandable && setExpanded(!expanded)}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h2 className="font-semibold">{session.title}</h2>
-              <p className="text-sm text-muted-foreground">
-                {session.facilitatorNames.join(', ')}
-                {session.needsFacilitator && (
-                  <Badge variant="secondary" className="ml-1">
-                    needs a facilitator
-                  </Badge>
-                )}
-                {!expandable && (
-                  <span className="ml-1 italic">Description TBD</span>
-                )}
-              </p>
-            </div>
-            {expandable && (
-              <span className="text-muted-foreground">
-                {expanded ? '▴' : '▾'}
-              </span>
-            )}
-          </div>
-        </button>
-        {expanded && session.description !== null && (
-          <div className="space-y-2 text-sm whitespace-pre-wrap">
-            {session.description}
-            {session.needsFacilitator && (
-              <p className="text-muted-foreground">
-                Let Yoav, Guy, or Libi know if you'd like to facilitate!
-              </p>
-            )}
+    <div className="border-border break-inside-avoid border-b py-2.5">
+      <div className="flex items-center gap-3">
+        {expandable ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={`${session.title}: ${expanded ? 'hide' : 'show'} description`}
+            className="min-w-0 flex-grow py-1 text-left"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <RowHeading session={session} chevron={expanded ? '▴' : '▾'} />
+          </button>
+        ) : (
+          <div className="min-w-0 flex-grow py-1">
+            <RowHeading session={session} />
           </div>
         )}
-        <div className="flex gap-2">
-          <Button
-            variant={session.myVote === 'regular' ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={session.myVote === 'regular'}
-            disabled={setVote.busy}
-            onClick={() => vote('regular')}
-          >
-            Vote
-          </Button>
-          <Button
-            variant={session.myVote === 'strong' ? 'default' : 'outline'}
-            size="sm"
-            aria-pressed={session.myVote === 'strong'}
-            disabled={setVote.busy}
-            onClick={() => vote('strong')}
-          >
-            Strong vote
-          </Button>
+        <HeartVote
+          vote={session.myVote}
+          disabled={setVote.busy}
+          onCycle={() =>
+            void setVote.run({
+              partySessionId: session._id,
+              strength: nextVote(session.myVote),
+            })
+          }
+        />
+      </div>
+      {expanded && session.description !== null && (
+        <div className="space-y-2 pt-1 pb-2 text-sm leading-relaxed whitespace-pre-wrap">
+          {session.description}
+          {session.needsFacilitator && (
+            <p className="text-muted-foreground">
+              Let Yoav, Guy, or Libi know if you'd like to facilitate!
+            </p>
+          )}
         </div>
-        <ErrorText message={setVote.error} />
-      </CardContent>
-    </Card>
+      )}
+      <ErrorText message={setVote.error} />
+    </div>
+  )
+}
+
+function RowHeading({
+  session,
+  chevron,
+}: {
+  session: SessionItem
+  chevron?: string
+}) {
+  return (
+    <>
+      <h2 className="font-display text-[17px] leading-tight font-bold">
+        {session.title}
+        {chevron && (
+          <span className="text-muted-foreground ml-1.5 text-sm">
+            {chevron}
+          </span>
+        )}
+      </h2>
+      <p className="text-muted-foreground text-xs">
+        {session.facilitatorNames.join(', ')}
+        {session.needsFacilitator && (
+          <Badge
+            variant="secondary"
+            className="ml-1 rounded-full text-[10px] tracking-wide uppercase"
+          >
+            needs a facilitator
+          </Badge>
+        )}
+      </p>
+    </>
   )
 }
