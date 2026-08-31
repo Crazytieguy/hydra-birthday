@@ -157,17 +157,19 @@ function RowHeading({
           </span>
         )}
       </h2>
-      <p className="text-muted-foreground text-xs">
-        {session.facilitatorNames.join(', ')}
-        {session.needsFacilitator && (
-          <Badge
-            variant="secondary"
-            className="ml-1 rounded-full text-[10px] tracking-wide uppercase"
-          >
-            needs a facilitator
-          </Badge>
-        )}
-      </p>
+      {(session.facilitatorNames.length > 0 || session.needsFacilitator) && (
+        <p className="text-muted-foreground text-xs">
+          {session.facilitatorNames.join(', ')}
+          {session.needsFacilitator && (
+            <Badge
+              variant="secondary"
+              className="ml-1 rounded-full text-[10px] tracking-wide uppercase"
+            >
+              needs a facilitator
+            </Badge>
+          )}
+        </p>
+      )}
     </>
   )
 }
