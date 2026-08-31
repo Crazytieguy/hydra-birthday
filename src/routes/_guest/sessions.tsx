@@ -37,21 +37,15 @@ function SessionsPage() {
         </Button>
         <h1 className="text-3xl font-semibold tracking-tight">Sessions</h1>
         <p className="text-muted-foreground">
-          Two days, way more sessions than hours. Your votes decide what runs
-          and when.
-        </p>
-        <p className="text-muted-foreground">
-          A vote means you'd happily join. A strong vote means you'd make a real
-          effort to be there. Leave the rest empty; empty means you'd sit it out
-          even if you were around. Aim for up to {STRONG_VOTE_TARGET} strong
-          votes.
+          Vote for sessions you'd attend, and strong vote for sessions you'd{' '}
+          <em>really</em> want to attend (aim for up to {STRONG_VOTE_TARGET})
         </p>
       </div>
 
       {strongCount > STRONG_VOTE_TARGET && (
         <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-          That's {strongCount} strong votes. They mean more when they're rare;
-          try to get down to about {STRONG_VOTE_TARGET}.
+          Ideally try to stick to less than {STRONG_VOTE_TARGET + 1} strong
+          votes
         </p>
       )}
 
@@ -107,6 +101,9 @@ function SessionCard({ session }: { session: SessionItem }) {
                     needs a facilitator
                   </Badge>
                 )}
+                {!expandable && (
+                  <span className="ml-1 italic">Description TBD</span>
+                )}
               </p>
             </div>
             {expandable && (
@@ -121,7 +118,7 @@ function SessionCard({ session }: { session: SessionItem }) {
             {session.description}
             {session.needsFacilitator && (
               <p className="text-muted-foreground">
-                Nobody's leading this one yet. Want to? Message one of us.
+                Let Yoav, Guy, or Libi know if you'd like to facilitate!
               </p>
             )}
           </div>
@@ -130,6 +127,7 @@ function SessionCard({ session }: { session: SessionItem }) {
           <Button
             variant={session.myVote === 'regular' ? 'default' : 'outline'}
             size="sm"
+            aria-pressed={session.myVote === 'regular'}
             disabled={setVote.busy}
             onClick={() => vote('regular')}
           >
@@ -138,6 +136,7 @@ function SessionCard({ session }: { session: SessionItem }) {
           <Button
             variant={session.myVote === 'strong' ? 'default' : 'outline'}
             size="sm"
+            aria-pressed={session.myVote === 'strong'}
             disabled={setVote.busy}
             onClick={() => vote('strong')}
           >

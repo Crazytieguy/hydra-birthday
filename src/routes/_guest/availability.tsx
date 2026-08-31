@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import { dayHourKeys, enabledDays } from '../../../convex/lib/slots'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ export const Route = createFileRoute('/_guest/availability')({
 })
 
 function AvailabilityPage() {
+  const navigate = useNavigate()
   const { data: mine } = useSessionQuery(api.availability.mine, {})
   const save = useSessionAction(api.availability.save)
   // Local mirror of the crossed-out set: taps feel instant, every change is
@@ -47,9 +48,9 @@ function AvailabilityPage() {
           When can you come?
         </h1>
         <p className="text-muted-foreground">
-          Cross out the hours you can't make. Whatever stays open is fair game
-          for scheduling. It is not a promise to show up for all of it; nobody
-          attends 28 hours of festival.
+          Cross out the hours you can't make, and we'll try to avoid scheduling
+          your voted sessions for those hours! Leaving hours open isn't taken as
+          a commitment, just information
         </p>
       </div>
 
@@ -64,6 +65,7 @@ function AvailabilityPage() {
                   <button
                     key={hour}
                     type="button"
+                    aria-pressed={isBlocked}
                     onClick={() => toggle(hour)}
                     className={`rounded-md border px-2 py-2 text-sm tabular-nums transition-colors ${
                       isBlocked
@@ -86,20 +88,18 @@ function AvailabilityPage() {
             Confirmed. You can keep editing until Tuesday Sep 8.
           </p>
         ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              Done crossing out? Confirm, so we know this is your real weekend
-              and not an untouched page.
-            </p>
-            <Button
-              disabled={save.busy}
-              onClick={() =>
-                void save.run({ blockedHours: [...blocked], confirm: true })
-              }
-            >
-              Confirm my hours
-            </Button>
-          </>
+          <Button
+            disabled={save.busy}
+            onClick={() =>
+              void save
+                .run({ blockedHours: [...blocked], confirm: true })
+                .then((result) => {
+                  if (result !== undefined) void navigate({ to: '/' })
+                })
+            }
+          >
+            Confirm my hours
+          </Button>
         )}
         <ErrorText message={save.error} />
       </div>

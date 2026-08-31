@@ -50,20 +50,15 @@ function Home() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Hi, {me.name}</h1>
         {done ? (
-          <div className="space-y-2 text-muted-foreground">
-            <p>
-              That's everything, you're done. We'll build the schedule after
-              Tuesday and send it out before the weekend.
-            </p>
-            <p>
-              Have an idea for a session, or want to lead one that's missing a
-              facilitator? Message Yoav, Libi, Guy, or Cormac.
-            </p>
-          </div>
+          <p className="text-muted-foreground">
+            Thanks! Feel free to message Yoav, Libi, or Guy if you have an idea
+            for a session (Cormac is at burning man)
+          </p>
         ) : (
           <p className="text-muted-foreground">
-            Two things before Tuesday Sep 8: pick your sessions and mark when
-            you can come. Ten minutes, tops.
+            Help us plan by telling us which sessions you like and when you're
+            available, we'll crunch the data and post a final schedule by Wed
+            Sep 9th!
           </p>
         )}
         {me.isAdmin && (
