@@ -1,7 +1,7 @@
-import { Navigate, createFileRoute, redirect } from '@tanstack/react-router'
-import { api } from '../../../convex/_generated/api'
-import type { Id } from '../../../convex/_generated/dataModel'
-import { dayHourKeys, enabledDays } from '../../../convex/lib/slots'
+import { createFileRoute } from '@tanstack/react-router'
+import { api } from '../../../../convex/_generated/api'
+import type { Id } from '../../../../convex/_generated/dataModel'
+import { dayHourKeys, enabledDays } from '../../../../convex/lib/slots'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -18,14 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { sessionQueryOptions, useMe, useSessionQuery } from '@/lib/guest'
+import { sessionQueryOptions, useSessionQuery } from '@/lib/guest'
 
-// Organizer-only raw-data views for hand-scheduling. Deliberately stateless:
-// everything renders from schedule.raw, so views can change freely.
-export const Route = createFileRoute('/_guest/schedule')({
-  beforeLoad: ({ context }) => {
-    if (!context.me.isAdmin) throw redirect({ to: '/' })
-  },
+// Raw-data views for hand-scheduling. Deliberately stateless: everything
+// renders from schedule.raw, so views can change freely. Gating lives in the
+// admin layout.
+export const Route = createFileRoute('/_guest/admin/schedule')({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(
       sessionQueryOptions(api.schedule.raw, {}, context.sessionToken),
@@ -37,12 +35,9 @@ export const Route = createFileRoute('/_guest/schedule')({
 type Raw = typeof api.schedule.raw._returnType
 
 function SchedulePage() {
-  const me = useMe()
   const { data } = useSessionQuery(api.schedule.raw, {})
-  if (!me.isAdmin) return <Navigate to="/" replace />
   return (
-    <div className="mx-auto max-w-5xl space-y-8 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Scheduling data</h1>
+    <div className="space-y-8">
       <People data={data} />
       <Sessions data={data} />
     </div>

@@ -45,31 +45,38 @@ export function HeartVote({
         }
         onCycle()
       }}
-      className={`flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors ${
-        vote !== null
-          ? 'border-primary bg-primary/10'
-          : 'border-border hover:border-primary/50'
-      }`}
+      className="flex size-11 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90"
     >
-      <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+      {/* Two copies of the same path; non-scaling strokes keep the shapes
+          reading identical. The small heart never changes size — only fill:
+          outline → pink (vote) → paper-on-pink (strong). */}
+      <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true">
         <path
           d={HEART}
           fill={vote === 'strong' ? 'var(--primary)' : 'none'}
           stroke={vote === null ? 'var(--muted-foreground)' : 'var(--primary)'}
-          strokeWidth="1.6"
+          strokeWidth="1.7"
+          vectorEffect="non-scaling-stroke"
         />
-        <g transform="translate(12 12.4) scale(0.48) translate(-12 -12)">
+        <g transform="translate(12 12.4) scale(0.52) translate(-12 -12)">
           <path
             d={HEART}
-            fill={vote !== null ? 'var(--primary)' : 'none'}
+            fill={
+              vote === 'regular'
+                ? 'var(--primary)'
+                : vote === 'strong'
+                  ? 'var(--primary-foreground)'
+                  : 'none'
+            }
             stroke={
-              vote === 'strong'
-                ? 'var(--background)'
+              vote === null
+                ? 'var(--muted-foreground)'
                 : vote === 'regular'
                   ? 'var(--primary)'
-                  : 'var(--muted-foreground)'
+                  : 'none'
             }
-            strokeWidth="2.4"
+            strokeWidth="1.7"
+            vectorEffect="non-scaling-stroke"
           />
         </g>
       </svg>

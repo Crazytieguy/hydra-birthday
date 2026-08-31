@@ -7,7 +7,7 @@ import {
 } from '../../../convex/lib/slots'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { HeartVote, nextVote } from '@/components/heart-vote'
+import { HEART, HeartVote, nextVote } from '@/components/heart-vote'
 import { ErrorText } from '@/components/screens'
 import {
   sessionQueryOptions,
@@ -79,7 +79,9 @@ function SessionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-6">
+    // The extra bottom padding lets the page scroll until the floating
+    // strong-vote pill sits below the Done button, covering nothing.
+    <div className="mx-auto max-w-4xl space-y-6 py-6 pb-24">
       <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
         <div className="flex items-baseline justify-between">
           <Button asChild variant="ghost" size="sm" className="-ml-3">
@@ -95,8 +97,9 @@ function SessionsPage() {
           Express interest in sessions
         </h1>
         <p>
-          Vote for sessions you'd attend, and strong vote for sessions you'd{' '}
-          <em>really</em> want to attend (aim for up to {STRONG_VOTE_TARGET})
+          Tap <InlineHeart /> for sessions you'd attend, and tap again for
+          sessions you'd <em>really</em> want to attend (aim for up to{' '}
+          {STRONG_VOTE_TARGET})
         </p>
       </div>
 
@@ -146,6 +149,20 @@ function SessionsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function InlineHeart() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      aria-label="the heart button"
+      className="fill-primary inline-block align-[-2px]"
+    >
+      <path d={HEART} />
+    </svg>
   )
 }
 
