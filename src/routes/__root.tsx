@@ -10,6 +10,8 @@ import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConvexQueryClient } from '@convex-dev/react-query'
 import appCss from '../styles.css?url'
+import baloo2Woff2 from '@fontsource-variable/baloo-2/files/baloo-2-latin-wght-normal.woff2?url'
+import nunitoSansWoff2 from '@fontsource-variable/nunito-sans/files/nunito-sans-latin-wght-normal.woff2?url'
 import { HEART } from '@/components/heart-vote'
 import { readSessionToken } from '@/lib/session'
 
@@ -47,15 +49,21 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { name: 'twitter:card', content: 'summary' },
     ],
     links: [
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      // Fonts are self-hosted (Fontsource, imported in styles.css); preload
+      // the latin faces so text renders in them on first paint.
       {
-        rel: 'preconnect',
-        href: 'https://fonts.gstatic.com',
+        rel: 'preload',
+        href: baloo2Woff2,
+        as: 'font',
+        type: 'font/woff2',
         crossOrigin: 'anonymous',
       },
       {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap',
+        rel: 'preload',
+        href: nunitoSansWoff2,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
       },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },

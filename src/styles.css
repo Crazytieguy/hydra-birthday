@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import '@fontsource-variable/baloo-2';
+@import '@fontsource-variable/nunito-sans';
+@import '@fontsource-variable/nunito-sans/wght-italic.css';
 
 @theme inline {
   --color-sidebar-ring: var(--sidebar-ring);
@@ -45,11 +48,11 @@
 
 @theme {
   --font-sans:
-    'Nunito Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-    'Segoe UI Emoji';
-  --font-display:
-    'Baloo 2', 'Nunito Sans', ui-sans-serif, system-ui, sans-serif,
+    'Nunito Sans Variable', ui-sans-serif, system-ui, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-display:
+    'Baloo 2 Variable', 'Nunito Sans Variable', ui-sans-serif, system-ui,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
 
 /* Warm paper + ink, one loud pink. Chosen from the design canvas: Sticker's
