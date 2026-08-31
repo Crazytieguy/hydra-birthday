@@ -18,6 +18,10 @@ interface RouterContext {
   convexQueryClient: ConvexQueryClient
 }
 
+const PROD_ORIGIN = 'https://hydra-birthday.code-bloom.app'
+const DESCRIPTION =
+  "You're invited to a birthday weekend, Sep 12-13! Vote on sessions and tell us when you're free."
+
 export const Route = createRootRouteWithContext<RouterContext>()({
   // Runs on every navigation, on both sides; every route sees
   // `context.sessionToken` (null when this browser has no invite yet).
@@ -30,6 +34,17 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
       { title: 'Hydra Birthday' },
+      { name: 'description', content: DESCRIPTION },
+      // Link previews (Signal, WhatsApp, iMessage) need absolute URLs and
+      // only ever fetch the prod site, so the prod origin is hardcoded
+      // (it's also in scripts/config.ts).
+      { property: 'og:title', content: 'Hydra Birthday' },
+      { property: 'og:description', content: DESCRIPTION },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:image', content: `${PROD_ORIGIN}/og.jpg` },
+      { property: 'og:image:width', content: '920' },
+      { property: 'og:image:height', content: '920' },
+      { name: 'twitter:card', content: 'summary' },
     ],
     links: [
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
