@@ -50,7 +50,7 @@ export function HeartVote({
       {/* Two copies of the same path; non-scaling strokes keep the shapes
           reading identical. The small heart never changes size — only fill:
           outline → pink (vote) → paper-on-pink (strong). */}
-      <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true">
+      <svg width="38" height="38" viewBox="0 0 24 24" aria-hidden="true">
         <path
           d={HEART}
           fill={vote === 'strong' ? 'var(--primary)' : 'none'}
@@ -58,6 +58,8 @@ export function HeartVote({
           strokeWidth="1.7"
           vectorEffect="non-scaling-stroke"
         />
+        {/* Once voted, the small heart is fill-only — a same-color outline
+            would fatten it and make the strong state look like a shrink. */}
         <g transform="translate(12 12.4) scale(0.52) translate(-12 -12)">
           <path
             d={HEART}
@@ -68,13 +70,7 @@ export function HeartVote({
                   ? 'var(--primary-foreground)'
                   : 'none'
             }
-            stroke={
-              vote === null
-                ? 'var(--muted-foreground)'
-                : vote === 'regular'
-                  ? 'var(--primary)'
-                  : 'none'
-            }
+            stroke={vote === null ? 'var(--muted-foreground)' : 'none'}
             strokeWidth="1.7"
             vectorEffect="non-scaling-stroke"
           />
