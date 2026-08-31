@@ -81,8 +81,8 @@ function Home() {
         />
         <Step
           number={2}
-          title="When can you come?"
-          detail="Cross out the hours you can't make."
+          title="When can't you come?"
+          detail="Cross out the hours you can't make it."
           to="/availability"
           state={doneAvailability ? 'done' : doneVoting ? 'current' : 'locked'}
         />

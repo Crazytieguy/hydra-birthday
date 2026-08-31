@@ -110,11 +110,11 @@ function AvailabilityPage() {
           )}
         </div>
         <h1 className="text-3xl font-bold tracking-tight">
-          When can you come?
+          When can't you come?
         </h1>
         <p>
-          Cross out the hours you can't make — tap, or drag across a range.
-          We'll try to avoid scheduling your voted sessions for those hours!
+          Tap or drag to cross out hours you can't make it, and we'll try to
+          avoid scheduling your liked sessions for those hours!
           Leaving hours open isn't taken as a commitment, just information
         </p>
       </div>
