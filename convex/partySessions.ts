@@ -1,8 +1,14 @@
 import { ConvexError, v } from 'convex/values'
-import { sessionMutation, sessionQuery } from './lib/auth'
+import {
+  adminMutation,
+  adminQuery,
+  sessionMutation,
+  sessionQuery,
+} from './lib/auth'
 import { takeAll } from './lib/collect'
+import { collapseWhitespace } from './lib/names'
 import { fnv1a } from './lib/slots'
-import type { QueryCtx } from './_generated/server'
+import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
 export const SESSIONS_CAP = 500
@@ -91,6 +97,120 @@ export const confirmVotes = sessionMutation({
         votesConfirmedAt: Date.now(),
       })
     }
+    return null
+  },
+})
+
+// ——— Admin catalog management ———
+
+const editableFields = {
+  title: v.string(),
+  description: v.optional(v.string()),
+  facilitatorIds: v.array(v.id('users')),
+  needsFacilitator: v.boolean(),
+  hidden: v.boolean(),
+}
+
+async function validateEdit(
+  ctx: MutationCtx,
+  edit: {
+    title: string
+    description?: string
+    facilitatorIds: Array<Id<'users'>>
+  },
+) {
+  const title = collapseWhitespace(edit.title)
+  if (!title) throw new ConvexError({ code: 'INVALID_TITLE' as const })
+  for (const id of edit.facilitatorIds) {
+    if (!(await ctx.db.get('users', id)))
+      throw new ConvexError({ code: 'NOT_FOUND' as const })
+  }
+  const description = edit.description?.trim()
+  return { title, description: description ? description : undefined }
+}
+
+export const adminList = adminQuery({
+  args: {},
+  handler: async (ctx) => {
+    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    return await Promise.all(
+      all.map(async (session) => {
+        const votes = await takeAll(
+          ctx.db
+            .query('votes')
+            .withIndex('by_partySessionId', (q) =>
+              q.eq('partySessionId', session._id),
+            ),
+          2000,
+        )
+        return {
+          _id: session._id,
+          catalogKey: session.catalogKey ?? null,
+          title: session.title,
+          description: session.description ?? null,
+          facilitatorIds: session.facilitatorIds,
+          facilitatorNames: await facilitatorNames(ctx, session),
+          needsFacilitator: session.needsFacilitator === true,
+          hidden: session.hidden === true,
+          regularVotes: votes.filter((v_) => v_.strength === 'regular').length,
+          strongVotes: votes.filter((v_) => v_.strength === 'strong').length,
+        }
+      }),
+    )
+  },
+})
+
+export const create = adminMutation({
+  args: editableFields,
+  handler: async (ctx, args) => {
+    const { title, description } = await validateEdit(ctx, args)
+    return await ctx.db.insert('partySessions', {
+      title,
+      description,
+      facilitatorIds: args.facilitatorIds,
+      needsFacilitator: args.needsFacilitator || undefined,
+      hidden: args.hidden || undefined,
+    })
+  },
+})
+
+// Replaces every editable field (the dialog submits the whole form).
+// `catalogKey` is never editable — it's the seed identity.
+export const update = adminMutation({
+  args: { partySessionId: v.id('partySessions'), ...editableFields },
+  handler: async (ctx, { partySessionId, ...edit }) => {
+    const session = await ctx.db.get('partySessions', partySessionId)
+    if (!session) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    const { title, description } = await validateEdit(ctx, edit)
+    await ctx.db.replace('partySessions', partySessionId, {
+      catalogKey: session.catalogKey,
+      title,
+      description,
+      facilitatorIds: edit.facilitatorIds,
+      needsFacilitator: edit.needsFacilitator || undefined,
+      hidden: edit.hidden || undefined,
+    })
+    return null
+  },
+})
+
+// Explicit, confirmed delete is the ONE place votes are destroyed with their
+// session; hiding a session keeps every vote.
+export const remove = adminMutation({
+  args: { partySessionId: v.id('partySessions') },
+  handler: async (ctx, { partySessionId }) => {
+    const session = await ctx.db.get('partySessions', partySessionId)
+    if (!session) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    const votes = await takeAll(
+      ctx.db
+        .query('votes')
+        .withIndex('by_partySessionId', (q) =>
+          q.eq('partySessionId', partySessionId),
+        ),
+      2000,
+    )
+    for (const vote of votes) await ctx.db.delete('votes', vote._id)
+    await ctx.db.delete('partySessions', partySessionId)
     return null
   },
 })

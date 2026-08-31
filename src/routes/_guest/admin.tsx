@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { Navigate, createFileRoute, redirect } from '@tanstack/react-router'
+import {
+  Link,
+  Navigate,
+  createFileRoute,
+  redirect,
+} from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import {
   AlertDialog,
@@ -32,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { AdminSessions } from '@/components/admin-sessions'
 import { CopyButton } from '@/components/copy-button'
 import { ErrorText } from '@/components/screens'
 import {
@@ -55,6 +61,9 @@ export const Route = createFileRoute('/_guest/admin')({
       context.queryClient.ensureQueryData(
         sessionQueryOptions(api.users.list, {}, sessionToken),
       ),
+      context.queryClient.ensureQueryData(
+        sessionQueryOptions(api.partySessions.adminList, {}, sessionToken),
+      ),
     ])
   },
   component: AdminPage,
@@ -69,7 +78,13 @@ function AdminPage() {
   if (!me.isAdmin) return <Navigate to="/" replace />
   return (
     <div className="space-y-8 py-8">
-      <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/schedule">Scheduling data</Link>
+        </Button>
+      </div>
+      <AdminSessions />
       <MintInvites />
       <Invites />
       <Users />

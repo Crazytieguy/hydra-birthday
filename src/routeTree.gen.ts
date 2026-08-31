@@ -13,6 +13,7 @@ import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as GuestIndexRouteImport } from './routes/_guest/index'
 import { Route as GuestAdminRouteImport } from './routes/_guest/admin'
+import { Route as GuestScheduleRouteImport } from './routes/_guest/schedule'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 
 const GuestRoute = GuestRouteImport.update({
@@ -34,6 +35,11 @@ const GuestAdminRoute = GuestAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => GuestRoute,
 } as any)
+const GuestScheduleRoute = GuestScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => GuestRoute,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -44,11 +50,13 @@ export interface FileRoutesByFullPath {
   '/': typeof GuestIndexRoute
   '/welcome': typeof WelcomeRoute
   '/admin': typeof GuestAdminRoute
+  '/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
 }
 export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/admin': typeof GuestAdminRoute
+  '/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof GuestIndexRoute
 }
@@ -57,19 +65,21 @@ export interface FileRoutesById {
   '/_guest': typeof GuestRouteWithChildren
   '/welcome': typeof WelcomeRoute
   '/_guest/admin': typeof GuestAdminRoute
+  '/_guest/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_guest/': typeof GuestIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/welcome' | '/admin' | '/invite/$token'
+  fullPaths: '/' | '/welcome' | '/admin' | '/schedule' | '/invite/$token'
   fileRoutesByTo: FileRoutesByTo
-  to: '/welcome' | '/admin' | '/invite/$token' | '/'
+  to: '/welcome' | '/admin' | '/schedule' | '/invite/$token' | '/'
   id:
     | '__root__'
     | '/_guest'
     | '/welcome'
     | '/_guest/admin'
+    | '/_guest/schedule'
     | '/invite/$token'
     | '/_guest/'
   fileRoutesById: FileRoutesById
@@ -110,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestAdminRouteImport
       parentRoute: typeof GuestRoute
     }
+    '/_guest/schedule': {
+      id: '/_guest/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof GuestScheduleRouteImport
+      parentRoute: typeof GuestRoute
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -122,11 +139,13 @@ declare module '@tanstack/react-router' {
 
 interface GuestRouteChildren {
   GuestAdminRoute: typeof GuestAdminRoute
+  GuestScheduleRoute: typeof GuestScheduleRoute
   GuestIndexRoute: typeof GuestIndexRoute
 }
 
 const GuestRouteChildren: GuestRouteChildren = {
   GuestAdminRoute: GuestAdminRoute,
+  GuestScheduleRoute: GuestScheduleRoute,
   GuestIndexRoute: GuestIndexRoute,
 }
 
@@ -140,12 +159,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

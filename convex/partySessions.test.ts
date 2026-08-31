@@ -204,6 +204,154 @@ describe('takeAll', () => {
   })
 })
 
+describe('admin catalog management', () => {
+  async function adminSetup() {
+    const t = convexTest(schema, modules)
+    const [invite] = await t.mutation(internal.invites.createInternal, {
+      labels: ['Yoav'],
+      grantsAdmin: true,
+    })
+    const adminToken = newToken()
+    await t.mutation(api.invites.claim, {
+      token: invite.token,
+      sessionToken: adminToken,
+    })
+    return { t, adminToken }
+  }
+
+  test('non-admins are refused on every admin surface', async () => {
+    const { t } = await adminSetup()
+    const { sessionToken } = await joinAs(t, 'Guest')
+    const id = await addSession(t, 'Something')
+    const forbidden = failsWith('FORBIDDEN')
+    await expect(
+      t.query(api.partySessions.adminList, { sessionToken }),
+    ).rejects.toEqual(forbidden)
+    await expect(t.query(api.schedule.raw, { sessionToken })).rejects.toEqual(
+      forbidden,
+    )
+    await expect(
+      t.mutation(api.partySessions.create, {
+        sessionToken,
+        title: 'Sneaky',
+        facilitatorIds: [],
+        needsFacilitator: false,
+        hidden: false,
+      }),
+    ).rejects.toEqual(forbidden)
+    await expect(
+      t.mutation(api.partySessions.update, {
+        sessionToken,
+        partySessionId: id,
+        title: 'Sneaky',
+        facilitatorIds: [],
+        needsFacilitator: false,
+        hidden: false,
+      }),
+    ).rejects.toEqual(forbidden)
+    await expect(
+      t.mutation(api.partySessions.remove, {
+        sessionToken,
+        partySessionId: id,
+      }),
+    ).rejects.toEqual(forbidden)
+  })
+
+  test('create, update, and remove round-trip; remove cascades votes', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken: guest } = await joinAs(t, 'Alice')
+
+    const id = await t.mutation(api.partySessions.create, {
+      sessionToken: adminToken,
+      title: '  Late   Idea ',
+      description: 'A brand new session',
+      facilitatorIds: [],
+      needsFacilitator: true,
+      hidden: false,
+    })
+    let listed = await t.query(api.partySessions.adminList, {
+      sessionToken: adminToken,
+    })
+    expect(listed.find((s) => s._id === id)).toMatchObject({
+      title: 'Late Idea',
+      description: 'A brand new session',
+      needsFacilitator: true,
+      catalogKey: null,
+    })
+
+    await t.mutation(api.partySessions.setVote, {
+      sessionToken: guest,
+      partySessionId: id,
+      strength: 'strong',
+    })
+
+    // Hiding keeps the vote and hides the session from guests.
+    await t.mutation(api.partySessions.update, {
+      sessionToken: adminToken,
+      partySessionId: id,
+      title: 'Late Idea',
+      facilitatorIds: [],
+      needsFacilitator: false,
+      hidden: true,
+    })
+    expect(
+      (await listFor(t, guest)).sessions.find((s) => s._id === id),
+    ).toBeUndefined()
+    listed = await t.query(api.partySessions.adminList, {
+      sessionToken: adminToken,
+    })
+    expect(listed.find((s) => s._id === id)).toMatchObject({
+      hidden: true,
+      strongVotes: 1,
+      description: null,
+    })
+
+    await t.mutation(api.partySessions.remove, {
+      sessionToken: adminToken,
+      partySessionId: id,
+    })
+    const raw = await t.query(api.schedule.raw, { sessionToken: adminToken })
+    expect(raw.sessions.find((s) => s._id === id)).toBeUndefined()
+    expect(raw.votes).toHaveLength(0)
+  })
+
+  test('schedule.raw joins everything the organizers need', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken: guest, userId } = await joinAs(t, 'Alice')
+    const id = await addSession(t, 'Circling', { facilitatorIds: [userId] })
+    await t.mutation(api.partySessions.setVote, {
+      sessionToken: guest,
+      partySessionId: id,
+      strength: 'strong',
+    })
+    await t.mutation(api.availability.save, {
+      sessionToken: guest,
+      blockedHours: [hourKey('2026-09-12', 10)],
+      confirm: true,
+    })
+    await t.mutation(api.partySessions.confirmVotes, { sessionToken: guest })
+
+    const raw = await t.query(api.schedule.raw, { sessionToken: adminToken })
+    expect(raw.users.find((u) => u._id === userId)).toMatchObject({
+      name: 'Alice',
+      votesConfirmedAt: expect.any(Number),
+    })
+    expect(raw.votes).toEqual([
+      { userId, partySessionId: id, strength: 'strong' },
+    ])
+    expect(raw.availability).toEqual([
+      {
+        userId,
+        blockedHours: [hourKey('2026-09-12', 10)],
+        confirmedAt: expect.any(Number),
+      },
+    ])
+    expect(raw.sessions.find((s) => s._id === id)).toMatchObject({
+      facilitatorIds: [userId],
+    })
+  })
+})
+
 describe('revoke and the new tables', () => {
   test('refuses to delete a never-joined user who facilitates a session', async () => {
     const t = convexTest(schema, modules)
