@@ -114,8 +114,8 @@ function AvailabilityPage() {
         </h1>
         <p>
           Tap or drag to cross out hours you can't make it, and we'll try to
-          avoid scheduling your liked sessions for those hours!
-          Leaving hours open isn't taken as a commitment, just information
+          avoid scheduling your liked sessions for those hours! Leaving hours
+          open isn't taken as a commitment, just information
         </p>
       </div>
 
