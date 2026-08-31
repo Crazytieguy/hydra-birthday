@@ -53,8 +53,7 @@ Outside of events like this, he's coached leaders and executives since 2015 acro
   {
     key: 'pdt-sign-language',
     title: 'Person Do Thing: Sign Language Edition',
-    // Facilitator strongly suspected but not confirmed; linked once they are.
-    facilitatorNames: [],
+    facilitatorNames: ['Noah Topper'],
     description: `Come learn ASL via Person Do Thing!
 
 Person Do Thing (https://persondothing.com/) is a wonderful game which teaches us that all human concepts can be described using just 33 simple words. It stands to reason, then, that you can 80/20 learning a new language by studying just these words.
@@ -64,8 +63,7 @@ American Sign Language is a beautifully fun language. Learning to sign is like s
   {
     key: 'pdt-toki-pona',
     title: 'Person Do Thing: Toki Pona Edition',
-    facilitatorNames: [],
-    needsFacilitator: true,
+    facilitatorNames: ['Noah Topper'],
     description:
       'Toki pona is a tiny constructed language, around 120 words total, built on the bet that simple concepts can compose into anything. Person Do Thing (persondothing.com) makes the same bet with just 33 words, so the two fit unreasonably well. This is a spinoff of the Sign Language edition, which has run several times; no toki pona experience needed.',
   },

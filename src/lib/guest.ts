@@ -3,6 +3,7 @@ import { convexQuery } from '@convex-dev/react-query'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import type { UseSuspenseQueryOptions } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
+import type { OptimisticLocalStore } from 'convex/browser'
 import type {
   FunctionArgs,
   FunctionReference,
@@ -59,11 +60,22 @@ export function useMe() {
 }
 
 // A gated mutation with busy/error state; the session token is filled in.
+// `optimisticUpdate` receives the full args (sessionToken included, so it can
+// address gated queries) and runs immediately on every call.
 export function useSessionAction<
   TMutation extends FunctionReference<'mutation'>,
->(mutation: TMutation) {
+>(
+  mutation: TMutation,
+  optimisticUpdate?: (
+    localStore: OptimisticLocalStore,
+    args: FunctionArgs<TMutation>,
+  ) => void,
+) {
   const sessionToken = useSessionToken()
-  const mutate = useMutation(mutation)
+  const base = useMutation(mutation)
+  const mutate = optimisticUpdate
+    ? base.withOptimisticUpdate(optimisticUpdate)
+    : base
   return useAsyncAction(
     (args: SessionArgs<TMutation>): Promise<FunctionReturnType<TMutation>> =>
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion

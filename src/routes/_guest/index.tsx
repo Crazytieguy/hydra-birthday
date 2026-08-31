@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -50,12 +49,12 @@ function Home() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Hi, {me.name}</h1>
         {done ? (
-          <p className="text-muted-foreground">
+          <p>
             Thanks! Feel free to message Yoav, Libi, or Guy if you have an idea
             for a session (Cormac is at burning man)
           </p>
         ) : (
-          <p className="text-muted-foreground">
+          <p>
             Help us plan by telling us which sessions you like and when you're
             available, we'll crunch the data and post a final schedule by Wed
             Sep 9th!
@@ -68,65 +67,34 @@ function Home() {
         )}
       </div>
 
-      {done ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Link to="/sessions" className="block">
-            <Card className="hover:bg-accent/50 h-full transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Sessions
-                  <Badge variant="secondary">done</Badge>
-                </CardTitle>
-                <CardDescription>
-                  {voteCount} vote{voteCount === 1 ? '' : 's'} in so far.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-          <Link to="/availability" className="block">
-            <Card className="hover:bg-accent/50 h-full transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  When can you come?
-                  <Badge variant="secondary">done</Badge>
-                </CardTitle>
-                <CardDescription>
-                  Cross out the hours you can't make.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <Step
-            number={1}
-            title="Pick your sessions"
-            detail={
-              voteCount === 0
-                ? 'Vote for what you want to happen.'
-                : `${voteCount} vote${voteCount === 1 ? '' : 's'} in so far.`
-            }
-            to="/sessions"
-            state={doneVoting ? 'done' : 'current'}
-          />
-          <Step
-            number={2}
-            title="When can you come?"
-            detail="Cross out the hours you can't make."
-            to="/availability"
-            state={doneVoting ? 'current' : 'locked'}
-          />
-        </div>
-      )}
+      <div className="space-y-4">
+        <Step
+          number={1}
+          title="Express interest in sessions"
+          detail={
+            voteCount === 0
+              ? 'Vote for what you want to happen.'
+              : `${voteCount} vote${voteCount === 1 ? '' : 's'} in so far.`
+          }
+          to="/sessions"
+          state={doneVoting ? 'done' : 'current'}
+        />
+        <Step
+          number={2}
+          title="When can you come?"
+          detail="Cross out the hours you can't make."
+          to="/availability"
+          state={doneAvailability ? 'done' : doneVoting ? 'current' : 'locked'}
+        />
+      </div>
 
       <DeviceLinkCard />
     </div>
   )
 }
 
-// One row of the first-pass flow: votes first, then hours; free navigation
-// unlocks once both are confirmed (the cards above replace this).
+// One row of the guided flow: votes first, hours locked until Done voting;
+// after that both steps stay freely navigable, just marked done.
 function Step({
   number,
   title,

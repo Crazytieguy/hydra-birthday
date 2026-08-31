@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 // The one heart shape everywhere: vote buttons and the header logo.
 export const HEART =
   'M12 20.5C7.5 16.5 4 13.6 4 9.9 4 7.4 6 5.5 8.4 5.5c1.4 0 2.7.7 3.6 1.8.9-1.1 2.2-1.8 3.6-1.8C18 5.5 20 7.4 20 9.9c0 3.7-3.5 6.6-8 10.6z'
@@ -11,7 +13,9 @@ const LABELS: Record<'regular' | 'strong' | 'none', string> = {
 }
 
 // One button, three states: tap fills the small heart (vote), tap again fills
-// the big one too (strong vote), a third tap clears.
+// the big one too (strong vote), a third tap clears. Mouse and pen fire on
+// press for snappiness; touch stays on release so starting a scroll on the
+// button doesn't cast votes; keyboard comes through as a detail-0 click.
 export function HeartVote({
   vote,
   disabled,
@@ -21,13 +25,26 @@ export function HeartVote({
   disabled?: boolean
   onCycle: () => void
 }) {
+  const firedOnPress = useRef(false)
   return (
     <button
       type="button"
       disabled={disabled}
       aria-pressed={vote !== null}
       aria-label={LABELS[vote ?? 'none']}
-      onClick={onCycle}
+      onPointerDown={(e) => {
+        if (e.pointerType !== 'touch' && e.button === 0) {
+          firedOnPress.current = true
+          onCycle()
+        }
+      }}
+      onClick={() => {
+        if (firedOnPress.current) {
+          firedOnPress.current = false
+          return
+        }
+        onCycle()
+      }}
       className={`flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors ${
         vote !== null
           ? 'border-primary bg-primary/10'

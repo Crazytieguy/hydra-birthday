@@ -30,9 +30,48 @@ type SessionItem =
 function SessionsPage() {
   const navigate = useNavigate()
   const { data } = useSessionQuery(api.partySessions.list, {})
-  const confirm = useSessionAction(api.partySessions.confirmVotes)
+  const setVote = useSessionAction(
+    api.partySessions.setVote,
+    (localStore, { sessionToken, partySessionId, strength }) => {
+      const current = localStore.getQuery(api.partySessions.list, {
+        sessionToken,
+      })
+      if (!current) return
+      localStore.setQuery(
+        api.partySessions.list,
+        { sessionToken },
+        {
+          ...current,
+          sessions: current.sessions.map((session) =>
+            session._id === partySessionId
+              ? { ...session, myVote: strength }
+              : session,
+          ),
+        },
+      )
+    },
+  )
+  const confirm = useSessionAction(
+    api.partySessions.confirmVotes,
+    (localStore, { sessionToken }) => {
+      const current = localStore.getQuery(api.partySessions.list, {
+        sessionToken,
+      })
+      if (current && current.votesConfirmedAt === null) {
+        localStore.setQuery(
+          api.partySessions.list,
+          { sessionToken },
+          { ...current, votesConfirmedAt: Date.now() },
+        )
+      }
+    },
+  )
   const strongCount = data.sessions.filter((s) => s.myVote === 'strong').length
   const firstPass = data.votesConfirmedAt === null
+  // A fixed split (not CSS columns) so expanding a description never
+  // reshuffles rows between columns.
+  const mid = Math.ceil(data.sessions.length / 2)
+  const columns = [data.sessions.slice(0, mid), data.sessions.slice(mid)]
 
   async function doneVoting() {
     const result = await confirm.run({})
@@ -40,7 +79,7 @@ function SessionsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 py-6">
+    <div className="mx-auto max-w-4xl space-y-6 py-6">
       <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
         <div className="flex items-baseline justify-between">
           <Button asChild variant="ghost" size="sm" className="-ml-3">
@@ -53,25 +92,33 @@ function SessionsPage() {
           )}
         </div>
         <h1 className="text-3xl font-bold tracking-tight">
-          Pick your sessions
+          Express interest in sessions
         </h1>
-        <p className="text-muted-foreground">
+        <p>
           Vote for sessions you'd attend, and strong vote for sessions you'd{' '}
           <em>really</em> want to attend (aim for up to {STRONG_VOTE_TARGET})
         </p>
-        {strongCount > STRONG_VOTE_TARGET && (
-          <p className="text-primary text-sm font-bold">
-            Ideally try to stick to less than {STRONG_VOTE_TARGET + 1} strong
-            votes
-          </p>
-        )}
       </div>
 
-      <div className="mx-auto max-w-2xl gap-x-12 lg:mx-0 lg:max-w-none lg:columns-2 xl:columns-3">
-        {data.sessions.map((session) => (
-          <SessionRow key={session._id} session={session} />
+      <div className="mx-auto max-w-2xl lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-x-12">
+        {columns.map((column, columnIndex) => (
+          <div key={columnIndex}>
+            {column.map((session) => (
+              <SessionRow
+                key={session._id}
+                session={session}
+                onCycle={() =>
+                  void setVote.run({
+                    partySessionId: session._id,
+                    strength: nextVote(session.myVote),
+                  })
+                }
+              />
+            ))}
+          </div>
         ))}
       </div>
+      <ErrorText message={setVote.error} />
 
       <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
         {firstPass ? (
@@ -91,46 +138,70 @@ function SessionsPage() {
         )}
         <ErrorText message={confirm.error} />
       </div>
+
+      {strongCount > STRONG_VOTE_TARGET && (
+        <div className="bg-primary text-primary-foreground fixed bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full px-5 py-2.5 text-sm font-bold shadow-lg">
+          Ideally try to stick to less than {STRONG_VOTE_TARGET + 1} strong
+          votes
+        </div>
+      )}
     </div>
   )
 }
 
-function SessionRow({ session }: { session: SessionItem }) {
+function Chevron({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={`text-muted-foreground shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 9l7 7 7-7" />
+    </svg>
+  )
+}
+
+function SessionRow({
+  session,
+  onCycle,
+}: {
+  session: SessionItem
+  onCycle: () => void
+}) {
   const [expanded, setExpanded] = useState(false)
-  const setVote = useSessionAction(api.partySessions.setVote)
   const expandable = session.description !== null
 
   return (
-    <div className="border-border break-inside-avoid border-b py-2.5">
+    <div className="border-border border-b py-2.5">
       <div className="flex items-center gap-3">
         {expandable ? (
           <button
             type="button"
             aria-expanded={expanded}
             aria-label={`${session.title}: ${expanded ? 'hide' : 'show'} description`}
-            className="min-w-0 flex-grow py-1 text-left"
+            className="flex min-w-0 flex-grow items-center gap-2.5 py-1 text-left"
             onClick={() => setExpanded(!expanded)}
           >
-            <RowHeading session={session} chevron={expanded ? '▴' : '▾'} />
+            <Chevron expanded={expanded} />
+            <RowHeading session={session} />
           </button>
         ) : (
-          <div className="min-w-0 flex-grow py-1">
+          <div className="flex min-w-0 flex-grow items-center gap-2.5 py-1">
+            <div className="w-[18px] shrink-0" />
             <RowHeading session={session} />
           </div>
         )}
-        <HeartVote
-          vote={session.myVote}
-          disabled={setVote.busy}
-          onCycle={() =>
-            void setVote.run({
-              partySessionId: session._id,
-              strength: nextVote(session.myVote),
-            })
-          }
-        />
+        <HeartVote vote={session.myVote} onCycle={onCycle} />
       </div>
       {expanded && session.description !== null && (
-        <div className="space-y-2 pt-1 pb-2 text-sm leading-relaxed whitespace-pre-wrap">
+        <div className="space-y-2 pt-1 pb-2 pl-8 text-sm leading-relaxed whitespace-pre-wrap">
           {session.description}
           {session.needsFacilitator && (
             <p className="text-muted-foreground">
@@ -139,27 +210,15 @@ function SessionRow({ session }: { session: SessionItem }) {
           )}
         </div>
       )}
-      <ErrorText message={setVote.error} />
     </div>
   )
 }
 
-function RowHeading({
-  session,
-  chevron,
-}: {
-  session: SessionItem
-  chevron?: string
-}) {
+function RowHeading({ session }: { session: SessionItem }) {
   return (
-    <>
+    <div className="min-w-0">
       <h2 className="font-display text-[17px] leading-tight font-bold">
         {session.title}
-        {chevron && (
-          <span className="text-muted-foreground ml-1.5 text-sm">
-            {chevron}
-          </span>
-        )}
       </h2>
       {(session.facilitatorNames.length > 0 || session.needsFacilitator) && (
         <p className="text-muted-foreground text-xs">
@@ -174,6 +233,6 @@ function RowHeading({
           )}
         </p>
       )}
-    </>
+    </div>
   )
 }

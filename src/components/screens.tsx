@@ -12,9 +12,9 @@ export function Screen({
   children?: React.ReactNode
 }) {
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {description && <p className="text-muted-foreground">{description}</p>}
+    <div className="mx-auto flex max-w-xl flex-col items-center gap-4 py-16 text-center">
+      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+      {description && <p className="text-balance">{description}</p>}
       {children}
     </div>
   )

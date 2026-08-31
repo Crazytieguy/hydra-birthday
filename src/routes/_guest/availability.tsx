@@ -31,14 +31,30 @@ const busySlash = {
 function AvailabilityPage() {
   const navigate = useNavigate()
   const { data: mine } = useSessionQuery(api.availability.mine, {})
-  const save = useSessionAction(api.availability.save)
+  const save = useSessionAction(
+    api.availability.save,
+    (localStore, { sessionToken, blockedHours, confirm }) => {
+      const current = localStore.getQuery(api.availability.mine, {
+        sessionToken,
+      })
+      localStore.setQuery(
+        api.availability.mine,
+        { sessionToken },
+        {
+          blockedHours: [...new Set(blockedHours)].sort(),
+          confirmedAt: current?.confirmedAt ?? (confirm ? Date.now() : null),
+        },
+      )
+    },
+  )
   // Local mirror of the crossed-out set: taps and drags feel instant; the
-  // whole set is saved (unconfirmed) when the gesture ends.
+  // whole set is saved (unconfirmed) when the gesture ends. The ref is
+  // updated synchronously in `apply` — persisting can happen in the same
+  // event tick as the last edit, before React re-renders.
   const [blocked, setBlocked] = useState(
     () => new Set(mine?.blockedHours ?? []),
   )
   const blockedRef = useRef(blocked)
-  blockedRef.current = blocked
   // While a paint gesture is live, every cell entered is set to this state.
   const paintTo = useRef<boolean | null>(null)
   const confirmed = mine !== null && mine.confirmedAt !== null
@@ -49,6 +65,7 @@ function AvailabilityPage() {
     const next = new Set(blockedRef.current)
     if (target) next.add(hour)
     else next.delete(hour)
+    blockedRef.current = next
     setBlocked(next)
   }
 
@@ -95,7 +112,7 @@ function AvailabilityPage() {
         <h1 className="text-3xl font-bold tracking-tight">
           When can you come?
         </h1>
-        <p className="text-muted-foreground">
+        <p>
           Cross out the hours you can't make — tap, or drag across a range.
           We'll try to avoid scheduling your voted sessions for those hours!
           Leaving hours open isn't taken as a commitment, just information

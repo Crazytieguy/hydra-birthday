@@ -1,4 +1,4 @@
-import { ConvexError } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { catalog } from '../data/catalog'
 import { internalMutation, internalQuery } from './_generated/server'
 import type { QueryCtx } from './_generated/server'
@@ -75,6 +75,44 @@ export const backfillDescriptions = internalMutation({
       filled.push(session.title)
     }
     return { filled }
+  },
+})
+
+// Link a facilitator to an already-seeded session by catalog key — for when
+// someone is confirmed after the deployment was seeded (the create-only seed
+// won't revisit the row). Creates the user + invite when the name is new;
+// clears needsFacilitator.
+export const linkFacilitator = internalMutation({
+  args: { catalogKey: v.string(), name: v.string() },
+  handler: async (ctx, { catalogKey, name }) => {
+    const session = await ctx.db
+      .query('partySessions')
+      .withIndex('by_catalogKey', (q) => q.eq('catalogKey', catalogKey))
+      .unique()
+    if (!session) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    const matches = (await takeAll(ctx.db.query('users'), 1000)).filter(
+      (user) => user.name === name,
+    )
+    if (matches.length > 1) {
+      throw new ConvexError({
+        code: 'AMBIGUOUS_FACILITATORS' as const,
+        names: [name],
+      })
+    }
+    let userId = matches[0]?._id
+    let mintedToken: string | null = null
+    if (!userId) {
+      const [minted] = await mint(ctx, { labels: [name] })
+      userId = minted.userId
+      mintedToken = minted.token
+    }
+    if (!session.facilitatorIds.includes(userId)) {
+      await ctx.db.patch('partySessions', session._id, {
+        facilitatorIds: [...session.facilitatorIds, userId],
+        needsFacilitator: undefined,
+      })
+    }
+    return { linked: session.title, name, token: mintedToken }
   },
 })
 
