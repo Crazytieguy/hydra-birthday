@@ -54,6 +54,28 @@ export const seedPreflight = internalQuery({
   },
 })
 
+// For descriptions that land in data/catalog.ts after a deployment was seeded
+// (e.g. drafts approved later). Fills only sessions whose description is still
+// empty — the create-only rule stands, nothing written by an admin is touched.
+export const backfillDescriptions = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const sessions = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    const byKey = new Map(catalog.map((entry) => [entry.key, entry]))
+    const filled: Array<string> = []
+    for (const session of sessions) {
+      if (session.description !== undefined || !session.catalogKey) continue
+      const entry = byKey.get(session.catalogKey)
+      if (!entry?.description) continue
+      await ctx.db.patch('partySessions', session._id, {
+        description: entry.description,
+      })
+      filled.push(session.title)
+    }
+    return { filled }
+  },
+})
+
 export const seed = internalMutation({
   args: {},
   handler: async (ctx) => {

@@ -66,7 +66,8 @@ American Sign Language is a beautifully fun language. Learning to sign is like s
     title: 'Person Do Thing: Toki Pona Edition',
     facilitatorNames: [],
     needsFacilitator: true,
-    // Description drafted in the copy artifact; lands here once approved.
+    description:
+      'Toki pona is a tiny constructed language, around 120 words total, built on the bet that simple concepts can compose into anything. Person Do Thing (persondothing.com) makes the same bet with just 33 words, so the two fit unreasonably well. This is a spinoff of the Sign Language edition, which has run several times; no toki pona experience needed.',
   },
   {
     key: 'musical-theater-karaoke',
@@ -186,7 +187,8 @@ American Sign Language is a beautifully fun language. Learning to sign is like s
     key: 'osho-meditation',
     title: 'Osho Kundalini or whirling meditation',
     facilitatorNames: ['Yoav'],
-    // Description drafted in the copy artifact; lands here once approved.
+    description:
+      "Osho active meditations are a powerful mix of physical and emotional activity with meditation. Kundalini is an hour in four stages: shaking your whole body loose, dancing, sitting still, then lying down. Whirling is exactly what it sounds like, sustained spinning, then rest. I'll pick one based on vibes.",
   },
   {
     key: 'utopia-discussion',
@@ -206,7 +208,8 @@ American Sign Language is a beautifully fun language. Learning to sign is like s
     key: 'metta-meditation',
     title: 'Metta Meditation',
     facilitatorNames: ['Yoav'],
-    // Description drafted in the copy artifact; lands here once approved.
+    description:
+      "I'll guide a loving-kindness meditation in the style I like, aiming to generate feelings of compassion and peace",
   },
   {
     key: 'glosso-quizzes',
