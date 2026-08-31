@@ -31,12 +31,27 @@ export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query('users').order('desc').take(1000)
-    return users.map((user) => ({
-      _id: user._id,
-      name: user.name,
-      isAdmin: user.isAdmin,
-      createdAt: user._creationTime,
-    }))
+    return await Promise.all(
+      users.map(async (user) => ({
+        _id: user._id,
+        name: user.name,
+        isAdmin: user.isAdmin,
+        createdAt: user._creationTime,
+        // Pre-migration users lack `joinedAt`; fall back to their earliest
+        // claimed invite so the admin page never mislabels them "not joined".
+        joinedAt:
+          user.joinedAt ??
+          (
+            await ctx.db
+              .query('invites')
+              .withIndex('by_claimedByUserId', (q) =>
+                q.eq('claimedByUserId', user._id),
+              )
+              .first()
+          )?.claimedAt ??
+          null,
+      })),
+    )
   },
 })
 

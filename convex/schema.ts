@@ -3,10 +3,13 @@ import { v } from 'convex/values'
 
 export default defineSchema({
   // Anonymous guest accounts. Nobody signs up: an account exists because an
-  // invite link was claimed.
+  // invite link was minted for them. `joinedAt` is set once, at the first
+  // successful claim; absent means invited but never joined. (Not derivable
+  // from sessions — signOutEverywhere deletes those.)
   users: defineTable({
     name: v.string(),
     isAdmin: v.boolean(),
+    joinedAt: v.optional(v.number()),
   }),
 
   // A browser bound to a user. The cookie holds the plaintext token; only its
@@ -18,10 +21,11 @@ export default defineSchema({
     .index('by_tokenHash', ['tokenHash'])
     .index('by_userId', ['userId']),
 
-  // One-time invite links. With `forUserId` set the link signs a device into
-  // an existing account (a guest's own "use another device" link, or an admin
-  // recovery link that also signs the account out everywhere else); otherwise
-  // claiming it creates a new user named by the guest (prefilled from `label`).
+  // One-time invite links. Every mint pre-creates the target user, so
+  // `forUserId` is always set on new invites (optional only until the prod
+  // migration converts pre-unification rows). Claiming binds a browser to the
+  // account; the first claim may also rename it (prefilled from the user's
+  // minted name). `label` is the mint-time snapshot of the name.
   invites: defineTable({
     tokenHash: v.string(),
     label: v.string(),
@@ -35,5 +39,6 @@ export default defineSchema({
     claimedSessionTokenHash: v.optional(v.string()),
   })
     .index('by_tokenHash', ['tokenHash'])
-    .index('by_forUserId', ['forUserId']),
+    .index('by_forUserId', ['forUserId'])
+    .index('by_claimedByUserId', ['claimedByUserId']),
 })

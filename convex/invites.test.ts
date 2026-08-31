@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { MAX_SESSIONS_PER_USER } from './lib/sessions'
-import { newToken } from './lib/tokens'
+import { hashToken, newToken } from './lib/tokens'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -241,6 +241,109 @@ describe('recovery', () => {
   })
 })
 
+describe('pre-unification data (transition safety)', () => {
+  // Builds a user the way the OLD code did: no joinedAt, a claimed invite
+  // without forUserId, a live session. Exists in prod until the migration runs.
+  async function legacyJoinedUser(t: T, name: string, claimedAt: number) {
+    const secret = newToken()
+    const userId = await t.run(async (ctx) => {
+      const legacyId = await ctx.db.insert('users', { name, isAdmin: false })
+      await ctx.db.insert('invites', {
+        tokenHash: await hashToken(newToken()),
+        label: name,
+        claimedAt,
+        claimedByUserId: legacyId,
+        claimedSessionTokenHash: await hashToken(newToken()),
+      })
+      await ctx.db.insert('sessions', {
+        userId: legacyId,
+        tokenHash: await hashToken(secret),
+      })
+      return legacyId
+    })
+    return { userId, secret }
+  }
+
+  test('a legacy user still reads as joined before the migration', async () => {
+    const { t, adminToken } = await setup()
+    const { userId, secret } = await legacyJoinedUser(t, 'Old Timer', 1000)
+
+    // Their device link is an "existing account" link, not renameable.
+    const token = await deviceLink(t, secret)
+    expect(await peek(t, token)).toMatchObject({
+      kind: 'existing',
+      name: 'Old Timer',
+    })
+    const laptop = await claim(t, token, 'Hax')
+    expect(await me(t, laptop)).toMatchObject({ name: 'Old Timer' })
+
+    // Admin views fall back to the claimed invite for the joined date.
+    const users = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(users.find((u) => u._id === userId)?.joinedAt).toBe(1000)
+
+    // Recovery works, reissue refuses.
+    await recoveryLink(t, adminToken, userId)
+    await expect(
+      t.mutation(api.invites.reissueInvite, {
+        sessionToken: adminToken,
+        userId,
+      }),
+    ).rejects.toEqual(failsWith('ALREADY_JOINED'))
+  })
+
+  test('a legacy unclaimed invite still joins, creating the user at claim', async () => {
+    const { t } = await setup()
+    const token = newToken()
+    await t.run(async (ctx) => {
+      await ctx.db.insert('invites', {
+        tokenHash: await hashToken(token),
+        label: 'Latecomer',
+      })
+    })
+    expect(await peek(t, token)).toMatchObject({ kind: 'new' })
+    const sessionToken = await claim(t, token, 'Latecomer L')
+    expect(await me(t, sessionToken)).toMatchObject({ name: 'Latecomer L' })
+  })
+
+  test('migrateToForUser backfills everything and is idempotent', async () => {
+    const { t, adminToken } = await setup()
+    // A legacy user with two claimed invites (original + device link).
+    const { userId } = await legacyJoinedUser(t, 'Legacy', 2000)
+    await t.run(async (ctx) => {
+      await ctx.db.insert('invites', {
+        tokenHash: await hashToken(newToken()),
+        label: 'Legacy',
+        claimedAt: 3000,
+        claimedByUserId: userId,
+        claimedSessionTokenHash: await hashToken(newToken()),
+      })
+      // A legacy invite nobody opened yet.
+      await ctx.db.insert('invites', {
+        tokenHash: await hashToken(newToken()),
+        label: 'Never Opened',
+        grantsAdmin: true,
+      })
+    })
+
+    const counts = await t.mutation(internal.invites.migrateToForUser, {})
+    expect(counts).toEqual({
+      invitesMissingForUserId: 0,
+      joinedUsersMissingJoinedAt: 0,
+    })
+
+    const users = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(users.find((u) => u._id === userId)?.joinedAt).toBe(2000)
+    expect(users.find((u) => u.name === 'Never Opened')).toMatchObject({
+      isAdmin: true,
+      joinedAt: null,
+    })
+
+    await t.mutation(internal.invites.migrateToForUser, {})
+    const again = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(again.filter((u) => u.name === 'Never Opened')).toHaveLength(1)
+  })
+})
+
 describe('admin gating', () => {
   test('guests cannot mint, list, promote, or sign others out', async () => {
     const { t } = await setup()
@@ -320,6 +423,99 @@ describe('admin gating', () => {
         .filter((i) => i.label === 'Ida' && !i.claimedAt)
         .map((i) => i.kind),
     ).toEqual(['recovery'])
+  })
+
+  test('an unclaimed invite already shows its guest as not joined', async () => {
+    const { t, adminToken } = await setup()
+    const [minted] = await t.mutation(internal.invites.createInternal, {
+      labels: ['Pending Pat'],
+    })
+    const users = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(users.find((u) => u._id === minted.userId)).toMatchObject({
+      name: 'Pending Pat',
+      joinedAt: null,
+    })
+
+    await claim(t, minted.token)
+    const after = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(after.find((u) => u._id === minted.userId)?.joinedAt).toBeTypeOf(
+      'number',
+    )
+  })
+
+  test('recovery links require a joined account; reissue requires an un-joined one', async () => {
+    const { t, adminToken } = await setup()
+    const [minted] = await t.mutation(internal.invites.createInternal, {
+      labels: ['Quiet Quinn'],
+    })
+    await expect(recoveryLink(t, adminToken, minted.userId)).rejects.toEqual(
+      failsWith('NOT_JOINED'),
+    )
+
+    const { user: joined } = await joinAs(t, 'Loud Lou')
+    await expect(
+      t.mutation(api.invites.reissueInvite, {
+        sessionToken: adminToken,
+        userId: joined._id,
+      }),
+    ).rejects.toEqual(failsWith('ALREADY_JOINED'))
+  })
+
+  test('reissuing replaces a first-time link without touching the account', async () => {
+    const { t, adminToken } = await setup()
+    const [minted] = await t.mutation(internal.invites.createInternal, {
+      labels: ['Rita'],
+    })
+    const { token: fresh } = await t.mutation(api.invites.reissueInvite, {
+      sessionToken: adminToken,
+      userId: minted.userId,
+    })
+    expect(await peek(t, minted.token)).toEqual({ status: 'invalid' })
+    expect(await peek(t, fresh)).toEqual({
+      status: 'available',
+      kind: 'new',
+      label: 'Rita',
+      viewer: null,
+    })
+    const listed = await listInvites(t, adminToken)
+    expect(listed.filter((i) => i.label === 'Rita').map((i) => i.kind)).toEqual(
+      ['new'],
+    )
+
+    const sessionToken = await claim(t, fresh, 'Rita R')
+    expect(await me(t, sessionToken)).toMatchObject({ name: 'Rita R' })
+  })
+
+  test('revoking a first-time link deletes its never-joined user', async () => {
+    const { t, adminToken } = await setup()
+    const [minted] = await t.mutation(internal.invites.createInternal, {
+      labels: ['Sam'],
+    })
+    const invite = (await listInvites(t, adminToken)).find(
+      (i) => i.label === 'Sam',
+    )!
+    await t.mutation(api.invites.revoke, {
+      sessionToken: adminToken,
+      inviteId: invite._id,
+    })
+    const users = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(users.find((u) => u._id === minted.userId)).toBeUndefined()
+  })
+
+  test('revoking an unclaimed device link keeps the joined user', async () => {
+    const { t, adminToken } = await setup()
+    const { sessionToken: phone, user: gina } = await joinAs(t, 'Gina')
+    await deviceLink(t, phone)
+    const invite = (await listInvites(t, adminToken)).find(
+      (i) => i.label === 'Gina' && i.kind === 'device' && !i.claimedAt,
+    )!
+    await t.mutation(api.invites.revoke, {
+      sessionToken: adminToken,
+      inviteId: invite._id,
+    })
+    const users = await t.query(api.users.list, { sessionToken: adminToken })
+    expect(users.find((u) => u._id === gina._id)).toBeDefined()
+    expect(await me(t, phone)).not.toBeNull()
   })
 
   test('admins promote and demote others but not themselves', async () => {
