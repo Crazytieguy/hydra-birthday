@@ -169,9 +169,9 @@ describe('availability', () => {
   test('rejects hours outside the enabled grid', async () => {
     const t = convexTest(schema, modules)
     const { sessionToken } = await joinAs(t, 'Alice')
-    // Friday is built but disabled; Saturday 09:00 is before the grid starts.
+    // 09:00 is before every day's grid starts.
     for (const bad of [
-      hourKey('2026-09-11', 18),
+      hourKey('2026-09-11', 9),
       hourKey('2026-09-12', 9),
       'garbage',
     ]) {
@@ -179,7 +179,18 @@ describe('availability', () => {
         failsWith('INVALID_HOURS'),
       )
     }
-    expect(enabledHourKeys().size).toBe(28)
+    expect(enabledHourKeys().size).toBe(42)
+  })
+
+  test('accepts Friday hours now that Friday is enabled', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    const fri18 = hourKey('2026-09-11', 18)
+    await save(t, sessionToken, [fri18])
+    expect(await mine(t, sessionToken)).toEqual({
+      blockedHours: [fri18],
+      confirmedAt: null,
+    })
   })
 
   test('confirm sticks across later edits', async () => {

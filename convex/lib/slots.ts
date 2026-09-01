@@ -9,15 +9,15 @@ export type Day = {
   enabled: boolean
 }
 
-// Friday is built but off until the organizers confirm collecting it;
-// flipping `enabled` needs no migration (its blocked hours just start empty).
+// Friday turned on 2026-08-31 for data collection (full day, matching Sat/Sun).
+// Guests who confirmed before then have no Friday blocked hours yet.
 export const days: Array<Day> = [
   {
     date: '2026-09-11',
     label: 'Friday',
-    startHour: 18,
+    startHour: 10,
     endHour: 24,
-    enabled: false,
+    enabled: true,
   },
   {
     date: '2026-09-12',

@@ -26,7 +26,7 @@ Mint links with `bun run invite Alice Bob` (`--prod`, `--admin`, `--file names.t
 
 ## Sessions, votes, availability
 
-The app's main feature: guests vote on party "sessions" (`partySessions` table — `sessions` is taken by auth) and cross out unavailable hours; organizers schedule by hand from `/admin/schedule`. The weekend grid, strong-vote target, and edit-deadline copy live in `convex/lib/slots.ts` (Friday is built but `enabled: false`). The catalog source of truth is `data/catalog.ts`, seeded create-only by `bun run seed [--prod] [--dry-run]` (reruns never clobber admin edits; new facilitator accounts get invite links, printed once). Late description/facilitator changes for already-seeded deployments: `catalog:backfillDescriptions` and `catalog:linkFacilitator`.
+The app's main feature: guests vote on party "sessions" (`partySessions` table — `sessions` is taken by auth) and cross out unavailable hours; organizers schedule by hand from `/admin/schedule`. The weekend grid, strong-vote target, and edit-deadline copy live in `convex/lib/slots.ts` (all three days enabled, 10:00–24:00). The catalog source of truth is `data/catalog.ts`, seeded create-only by `bun run seed [--prod] [--dry-run]` (reruns never clobber admin edits; new facilitator accounts get invite links, printed once). Late description/facilitator changes for already-seeded deployments: `catalog:backfillDescriptions` and `catalog:linkFacilitator`.
 
 ## Copy
 
