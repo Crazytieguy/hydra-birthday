@@ -96,6 +96,10 @@ export const list = sessionQuery({
           _id: facilitated._id,
           title: facilitated.title,
           description: facilitated.description ?? null,
+          // Withdrawable = an actual proposal: not seeded, solely theirs.
+          canWithdraw:
+            facilitated.catalogKey === undefined &&
+            facilitated.facilitatorIds.length === 1,
           // Votes are unique per user+session, so among any two votes at
           // least one is someone else's.
           hasOtherVotes: (
@@ -151,6 +155,21 @@ export const updateMine = sessionMutation({
       title,
       description,
     })
+    return null
+  },
+})
+
+// Withdrawing deletes the proposal outright (votes included), freeing the
+// guest's slot to propose again. Seeded and shared sessions stay put.
+export const withdrawMine = sessionMutation({
+  args: { partySessionId: v.id('partySessions') },
+  handler: async (ctx, { partySessionId }) => {
+    const session = await ctx.db.get('partySessions', partySessionId)
+    if (!session || !session.facilitatorIds.includes(ctx.user._id))
+      throw new ConvexError({ code: 'NOT_FOUND' as const })
+    if (session.catalogKey !== undefined || session.facilitatorIds.length !== 1)
+      throw new ConvexError({ code: 'CANNOT_WITHDRAW' as const })
+    await deleteSessionWithVotes(ctx, partySessionId)
     return null
   },
 })
@@ -304,23 +323,30 @@ export const update = adminMutation({
   },
 })
 
-// Explicit, confirmed delete is the ONE place votes are destroyed with their
-// session; hiding a session keeps every vote.
+// Deleting a session (admin remove or guest withdraw) is the ONLY way votes
+// are destroyed; hiding a session keeps every vote.
+async function deleteSessionWithVotes(
+  ctx: MutationCtx,
+  partySessionId: Id<'partySessions'>,
+) {
+  const votes = await takeAll(
+    ctx.db
+      .query('votes')
+      .withIndex('by_partySessionId', (q) =>
+        q.eq('partySessionId', partySessionId),
+      ),
+    2000,
+  )
+  for (const vote of votes) await ctx.db.delete('votes', vote._id)
+  await ctx.db.delete('partySessions', partySessionId)
+}
+
 export const remove = adminMutation({
   args: { partySessionId: v.id('partySessions') },
   handler: async (ctx, { partySessionId }) => {
     const session = await ctx.db.get('partySessions', partySessionId)
     if (!session) throw new ConvexError({ code: 'NOT_FOUND' as const })
-    const votes = await takeAll(
-      ctx.db
-        .query('votes')
-        .withIndex('by_partySessionId', (q) =>
-          q.eq('partySessionId', partySessionId),
-        ),
-      2000,
-    )
-    for (const vote of votes) await ctx.db.delete('votes', vote._id)
-    await ctx.db.delete('partySessions', partySessionId)
+    await deleteSessionWithVotes(ctx, partySessionId)
     return null
   },
 })

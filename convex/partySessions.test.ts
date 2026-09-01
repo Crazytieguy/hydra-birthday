@@ -167,6 +167,7 @@ describe('proposals', () => {
       title: 'Cuddle Puddle',
       description: 'Bring a blanket.',
       hasOtherVotes: false,
+      canWithdraw: true,
     })
     expect(sessions.find((s) => s._id === id)).toMatchObject({
       title: 'Cuddle Puddle',
@@ -233,6 +234,7 @@ describe('proposals', () => {
       title: 'Secret Fusion Dance',
       description: null,
       hasOtherVotes: false,
+      canWithdraw: true,
     })
   })
 
@@ -300,6 +302,70 @@ describe('proposals', () => {
     expect(sessions.find((s) => s._id === second)?.title).toBe(
       'Seeded Two, sharper',
     )
+  })
+
+  test('withdraw deletes the proposal with its votes and frees the slot', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken: alice } = await joinAs(t, 'Alice')
+    const { sessionToken: bob } = await joinAs(t, 'Bob')
+    const id = await propose(t, alice, 'First Idea')
+    await t.mutation(api.partySessions.setVote, {
+      sessionToken: bob,
+      partySessionId: id,
+      strength: 'strong',
+    })
+
+    await t.mutation(api.partySessions.withdrawMine, {
+      sessionToken: alice,
+      partySessionId: id,
+    })
+    expect((await listFor(t, alice)).myFacilitatedSession).toBeNull()
+    expect(
+      (await listFor(t, bob)).sessions.find((s) => s._id === id),
+    ).toBeUndefined()
+    await t.run(async (ctx) => {
+      expect(await takeAll(ctx.db.query('votes'), 10)).toHaveLength(0)
+    })
+    // The slot is free again.
+    await propose(t, alice, 'Second Idea')
+  })
+
+  test('withdraw refuses seeded, shared, and unowned sessions', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken: alice, userId: aliceId } = await joinAs(t, 'Alice')
+    const { sessionToken: bob, userId: bobId } = await joinAs(t, 'Bob')
+
+    const seeded = await t.run((ctx) =>
+      ctx.db.insert('partySessions', {
+        catalogKey: 'circling',
+        title: 'Circling',
+        facilitatorIds: [aliceId],
+      }),
+    )
+    await expect(
+      t.mutation(api.partySessions.withdrawMine, {
+        sessionToken: alice,
+        partySessionId: seeded,
+      }),
+    ).rejects.toEqual(failsWith('CANNOT_WITHDRAW'))
+
+    const shared = await addSession(t, 'Duet', {
+      facilitatorIds: [bobId, aliceId],
+    })
+    await expect(
+      t.mutation(api.partySessions.withdrawMine, {
+        sessionToken: bob,
+        partySessionId: shared,
+      }),
+    ).rejects.toEqual(failsWith('CANNOT_WITHDRAW'))
+
+    const bobsOwn = await addSession(t, 'Solo', { facilitatorIds: [bobId] })
+    await expect(
+      t.mutation(api.partySessions.withdrawMine, {
+        sessionToken: alice,
+        partySessionId: bobsOwn,
+      }),
+    ).rejects.toEqual(failsWith('NOT_FOUND'))
   })
 
   test("hasOtherVotes ignores the proposer's own vote", async () => {

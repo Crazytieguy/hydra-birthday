@@ -31,6 +31,7 @@ const messages: Record<string, string> = {
   INVALID_TITLE: `Please give your session a title (up to ${TITLE_MAX_LENGTH} characters).`,
   INVALID_DESCRIPTION: `Please keep the description under ${DESCRIPTION_MAX_LENGTH} characters.`,
   ALREADY_FACILITATING: "You're already running a session. One per person.",
+  CANNOT_WITHDRAW: "You can't withdraw that one. Message Yoav, Libi, or Guy.",
   CANNOT_DEMOTE_SELF: "You can't remove your own admin access.",
 }
 

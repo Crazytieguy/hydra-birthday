@@ -60,9 +60,12 @@ function SessionForm({ mine }: { mine: MyFacilitatedSession }) {
   const navigate = useNavigate()
   const propose = useSessionAction(api.partySessions.propose)
   const updateMine = useSessionAction(api.partySessions.updateMine)
+  const withdraw = useSessionAction(api.partySessions.withdrawMine)
   const action = mine === null ? propose : updateMine
   const [title, setTitle] = useState(mine?.title ?? '')
   const [description, setDescription] = useState(mine?.description ?? '')
+  // Withdrawing is two clicks: the button restates itself before it acts.
+  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false)
 
   async function submit() {
     // The server normalizes both fields (trims, drops a blank description).
@@ -125,8 +128,24 @@ function SessionForm({ mine }: { mine: MyFacilitatedSession }) {
             <Link to="/">Maybe later</Link>
           </Button>
         )}
+        {mine?.canWithdraw && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive"
+            disabled={withdraw.busy}
+            onClick={() => {
+              if (confirmingWithdraw)
+                void withdraw.run({ partySessionId: mine._id })
+              else setConfirmingWithdraw(true)
+            }}
+          >
+            {confirmingWithdraw ? 'Sure? Its votes go too' : 'Withdraw'}
+          </Button>
+        )}
       </div>
       <ErrorText message={action.error} />
+      <ErrorText message={withdraw.error} />
     </form>
   )
 }
