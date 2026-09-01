@@ -14,6 +14,7 @@ import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as GuestIndexRouteImport } from './routes/_guest/index'
 import { Route as GuestAdminRouteImport } from './routes/_guest/admin'
 import { Route as GuestAvailabilityRouteImport } from './routes/_guest/availability'
+import { Route as GuestProposeRouteImport } from './routes/_guest/propose'
 import { Route as GuestSessionsRouteImport } from './routes/_guest/sessions'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GuestAdminIndexRouteImport } from './routes/_guest/admin/index'
@@ -44,6 +45,11 @@ const GuestAdminRoute = GuestAdminRouteImport.update({
 const GuestAvailabilityRoute = GuestAvailabilityRouteImport.update({
   id: '/availability',
   path: '/availability',
+  getParentRoute: () => GuestRoute,
+} as any)
+const GuestProposeRoute = GuestProposeRouteImport.update({
+  id: '/propose',
+  path: '/propose',
   getParentRoute: () => GuestRoute,
 } as any)
 const GuestSessionsRoute = GuestSessionsRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/admin': typeof GuestAdminRouteWithChildren
   '/availability': typeof GuestAvailabilityRoute
+  '/propose': typeof GuestProposeRoute
   '/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/availability': typeof GuestAvailabilityRoute
+  '/propose': typeof GuestProposeRoute
   '/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof GuestIndexRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/_guest/admin': typeof GuestAdminRouteWithChildren
   '/_guest/availability': typeof GuestAvailabilityRoute
+  '/_guest/propose': typeof GuestProposeRoute
   '/_guest/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_guest/': typeof GuestIndexRoute
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/admin'
     | '/availability'
+    | '/propose'
     | '/sessions'
     | '/invite/$token'
     | '/admin/guests'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
   to:
     | '/welcome'
     | '/availability'
+    | '/propose'
     | '/sessions'
     | '/invite/$token'
     | '/'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/_guest/admin'
     | '/_guest/availability'
+    | '/_guest/propose'
     | '/_guest/sessions'
     | '/invite/$token'
     | '/_guest/'
@@ -205,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/availability'
       fullPath: '/availability'
       preLoaderRoute: typeof GuestAvailabilityRouteImport
+      parentRoute: typeof GuestRoute
+    }
+    '/_guest/propose': {
+      id: '/_guest/propose'
+      path: '/propose'
+      fullPath: '/propose'
+      preLoaderRoute: typeof GuestProposeRouteImport
       parentRoute: typeof GuestRoute
     }
     '/_guest/sessions': {
@@ -282,6 +301,7 @@ const GuestAdminRouteWithChildren = GuestAdminRoute._addFileChildren(
 interface GuestRouteChildren {
   GuestAdminRoute: typeof GuestAdminRouteWithChildren
   GuestAvailabilityRoute: typeof GuestAvailabilityRoute
+  GuestProposeRoute: typeof GuestProposeRoute
   GuestSessionsRoute: typeof GuestSessionsRoute
   GuestIndexRoute: typeof GuestIndexRoute
 }
@@ -289,6 +309,7 @@ interface GuestRouteChildren {
 const GuestRouteChildren: GuestRouteChildren = {
   GuestAdminRoute: GuestAdminRouteWithChildren,
   GuestAvailabilityRoute: GuestAvailabilityRoute,
+  GuestProposeRoute: GuestProposeRoute,
   GuestSessionsRoute: GuestSessionsRoute,
   GuestIndexRoute: GuestIndexRoute,
 }

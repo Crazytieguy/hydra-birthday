@@ -1,5 +1,9 @@
 import { ConvexError } from 'convex/values'
-import { NAME_MAX_LENGTH } from '../../convex/lib/names'
+import {
+  DESCRIPTION_MAX_LENGTH,
+  NAME_MAX_LENGTH,
+  TITLE_MAX_LENGTH,
+} from '../../convex/lib/names'
 
 // A browser-side failure whose message is already written for the guest.
 export class UserFacingError extends Error {}
@@ -24,6 +28,9 @@ const messages: Record<string, string> = {
   INVITE_CLAIMED: 'That link was already used.',
   INVALID_INVITE: "That link isn't valid anymore.",
   INVALID_NAME: `Please enter a name (up to ${NAME_MAX_LENGTH} characters).`,
+  INVALID_TITLE: `Please give your session a title (up to ${TITLE_MAX_LENGTH} characters).`,
+  INVALID_DESCRIPTION: `Please keep the description under ${DESCRIPTION_MAX_LENGTH} characters.`,
+  ALREADY_FACILITATING: "You're already running a session. One per person.",
   CANNOT_DEMOTE_SELF: "You can't remove your own admin access.",
 }
 

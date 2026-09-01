@@ -6,7 +6,11 @@ import {
   sessionQuery,
 } from './lib/auth'
 import { takeAll } from './lib/collect'
-import { collapseWhitespace } from './lib/names'
+import {
+  collapseWhitespace,
+  DESCRIPTION_MAX_LENGTH,
+  TITLE_MAX_LENGTH,
+} from './lib/names'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
@@ -67,6 +71,7 @@ export const list = sessionQuery({
         .filter((session) => session.hidden !== true)
         .map(async (session) => ({
           _id: session._id,
+          _creationTime: session._creationTime,
           title: session.title,
           description: session.description ?? null,
           facilitatorNames: await facilitatorNames(ctx, session),
@@ -78,7 +83,39 @@ export const list = sessionQuery({
     sessions.sort(
       (a, b) => order(a._id) - order(b._id) || a._id.localeCompare(b._id),
     )
-    return { sessions, votesConfirmedAt: ctx.user.votesConfirmedAt ?? null }
+    // Searched pre-hidden-filter: a hidden facilitated session still spends
+    // the guest's one proposal slot (deleting it is what frees the slot).
+    const facilitated = all.find((session) =>
+      session.facilitatorIds.includes(ctx.user._id),
+    )
+    return {
+      sessions,
+      votesConfirmedAt: ctx.user.votesConfirmedAt ?? null,
+      myFacilitatedSession: facilitated
+        ? { _id: facilitated._id, title: facilitated.title }
+        : null,
+    }
+  },
+})
+
+// A guest's one proposal: they always volunteer to run it, so the facilitator
+// slot doubles as the proposal marker — anyone already facilitating any
+// session (seeded or proposed, hidden or not) can't propose another.
+export const propose = sessionMutation({
+  args: { title: v.string(), description: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    if (all.some((s) => s.facilitatorIds.includes(ctx.user._id)))
+      throw new ConvexError({ code: 'ALREADY_FACILITATING' as const })
+    const { title, description } = await validateEdit(ctx, {
+      ...args,
+      facilitatorIds: [ctx.user._id],
+    })
+    return await ctx.db.insert('partySessions', {
+      title,
+      description,
+      facilitatorIds: [ctx.user._id],
+    })
   },
 })
 
@@ -141,12 +178,15 @@ async function validateEdit(
   },
 ) {
   const title = collapseWhitespace(edit.title)
-  if (!title) throw new ConvexError({ code: 'INVALID_TITLE' as const })
+  if (!title || title.length > TITLE_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_TITLE' as const })
   for (const id of edit.facilitatorIds) {
     if (!(await ctx.db.get('users', id)))
       throw new ConvexError({ code: 'NOT_FOUND' as const })
   }
   const description = edit.description?.trim()
+  if (description && description.length > DESCRIPTION_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_DESCRIPTION' as const })
   return { title, description: description ? description : undefined }
 }
 

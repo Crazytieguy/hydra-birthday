@@ -49,10 +49,17 @@ function Home() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Hi, {me.name}</h1>
         {done ? (
-          <p>
-            Thanks! Feel free to message Yoav, Libi, or Guy if you have an idea
-            for a session (Cormac is at burning man)
-          </p>
+          sessionData.myFacilitatedSession ? (
+            <p>
+              Thanks! Your votes and hours are in, and{' '}
+              {sessionData.myFacilitatedSession.title} is on the list.
+            </p>
+          ) : (
+            <p>
+              Thanks! Your votes and hours are in. Have an idea for a session?
+              Propose it below.
+            </p>
+          )
         ) : (
           <p>
             Help us plan by telling us which sessions you like and when you're
@@ -83,8 +90,27 @@ function Home() {
           number={2}
           title="When can't you come?"
           detail="Cross out the hours you can't make it."
+          lockedDetail="After the votes."
           to="/availability"
           state={doneAvailability ? 'done' : doneVoting ? 'current' : 'locked'}
+        />
+        <Step
+          number={3}
+          title="Propose a session"
+          detail={
+            sessionData.myFacilitatedSession
+              ? `You're running ${sessionData.myFacilitatedSession.title}.`
+              : 'Optional. Put your own idea on the list.'
+          }
+          lockedDetail="After the hours."
+          to="/propose"
+          state={
+            sessionData.myFacilitatedSession
+              ? 'done'
+              : done
+                ? 'current'
+                : 'locked'
+          }
         />
       </div>
 
@@ -99,13 +125,15 @@ function Step({
   number,
   title,
   detail,
+  lockedDetail,
   to,
   state,
 }: {
   number: number
   title: string
   detail: string
-  to: '/sessions' | '/availability'
+  lockedDetail?: string
+  to: '/sessions' | '/availability' | '/propose'
   state: 'done' | 'current' | 'locked'
 }) {
   const body = (
@@ -126,7 +154,7 @@ function Step({
           {title}
         </h2>
         <p className="text-muted-foreground text-sm">
-          {state === 'locked' ? 'After the votes.' : detail}
+          {state === 'locked' ? (lockedDetail ?? detail) : detail}
         </p>
       </div>
       {state !== 'locked' && <span className="text-muted-foreground">→</span>}

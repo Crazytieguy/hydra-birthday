@@ -141,6 +141,102 @@ describe('voting', () => {
   })
 })
 
+describe('proposals', () => {
+  const propose = (
+    t: T,
+    sessionToken: string,
+    title: string,
+    description?: string,
+  ) =>
+    t.mutation(api.partySessions.propose, { sessionToken, title, description })
+
+  test('propose round-trips through list and adminList', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken, userId } = await joinAs(t, 'Alice')
+    expect((await listFor(t, sessionToken)).myFacilitatedSession).toBeNull()
+
+    const id = await propose(
+      t,
+      sessionToken,
+      '  Cuddle   Puddle ',
+      '  Bring a blanket.  ',
+    )
+    const { sessions, myFacilitatedSession } = await listFor(t, sessionToken)
+    expect(myFacilitatedSession).toEqual({ _id: id, title: 'Cuddle Puddle' })
+    expect(sessions.find((s) => s._id === id)).toMatchObject({
+      title: 'Cuddle Puddle',
+      description: 'Bring a blanket.',
+      facilitatorNames: ['Alice'],
+      needsFacilitator: false,
+      _creationTime: expect.any(Number),
+    })
+    const adminListed = await t.query(api.partySessions.adminList, {
+      sessionToken: adminToken,
+    })
+    expect(adminListed.find((s) => s._id === id)).toMatchObject({
+      catalogKey: null,
+      facilitatorIds: [userId],
+    })
+  })
+
+  test('blank description is stored as absent', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    const id = await propose(t, sessionToken, 'Quiet Hour', '   ')
+    const { sessions } = await listFor(t, sessionToken)
+    expect(sessions.find((s) => s._id === id)?.description).toBeNull()
+  })
+
+  test('rejects blank and oversized titles and descriptions', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    await expect(propose(t, sessionToken, '   ')).rejects.toEqual(
+      failsWith('INVALID_TITLE'),
+    )
+    await expect(propose(t, sessionToken, 'x'.repeat(81))).rejects.toEqual(
+      failsWith('INVALID_TITLE'),
+    )
+    await expect(
+      propose(t, sessionToken, 'Fine title', 'y'.repeat(2001)),
+    ).rejects.toEqual(failsWith('INVALID_DESCRIPTION'))
+    // Nothing landed.
+    expect((await listFor(t, sessionToken)).myFacilitatedSession).toBeNull()
+  })
+
+  test('one proposal per guest', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    await propose(t, sessionToken, 'First idea')
+    await expect(propose(t, sessionToken, 'Second idea')).rejects.toEqual(
+      failsWith('ALREADY_FACILITATING'),
+    )
+  })
+
+  test('facilitating any session blocks proposing, hidden included', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken, userId } = await joinAs(t, 'Thor')
+    await addSession(t, 'Secret Fusion Dance', {
+      facilitatorIds: [userId],
+      hidden: true,
+    })
+    await expect(propose(t, sessionToken, 'Another one')).rejects.toEqual(
+      failsWith('ALREADY_FACILITATING'),
+    )
+    // The hidden session still reads as their spent slot.
+    expect((await listFor(t, sessionToken)).myFacilitatedSession).toEqual({
+      _id: expect.any(String),
+      title: 'Secret Fusion Dance',
+    })
+  })
+
+  test('requires a session token', async () => {
+    const t = convexTest(schema, modules)
+    await expect(propose(t, 'bogus', 'Anything')).rejects.toEqual(
+      failsWith('UNAUTHENTICATED'),
+    )
+  })
+})
+
 describe('availability', () => {
   const save = (
     t: T,

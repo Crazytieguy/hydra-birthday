@@ -105,7 +105,7 @@ function AvailabilityPage() {
           </Button>
           {firstPass && (
             <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
-              Step 2 of 2
+              Step 2 of 3
             </span>
           )}
         </div>
@@ -215,7 +215,7 @@ function AvailabilityPage() {
               void save
                 .run({ blockedHours: [...blockedRef.current], confirm: true })
                 .then((result) => {
-                  if (result !== undefined) void navigate({ to: '/' })
+                  if (result !== undefined) void navigate({ to: '/propose' })
                 })
             }
           >

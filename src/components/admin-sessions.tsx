@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import {
+  DESCRIPTION_MAX_LENGTH,
+  TITLE_MAX_LENGTH,
+} from '../../convex/lib/names'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -216,6 +220,7 @@ function SessionDialog({
             <Label htmlFor="session-title">Title</Label>
             <Input
               id="session-title"
+              maxLength={TITLE_MAX_LENGTH}
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
@@ -225,6 +230,7 @@ function SessionDialog({
             <Textarea
               id="session-description"
               rows={6}
+              maxLength={DESCRIPTION_MAX_LENGTH}
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })

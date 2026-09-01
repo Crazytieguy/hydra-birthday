@@ -89,7 +89,7 @@ function SessionsPage() {
           </Button>
           {firstPass && (
             <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
-              Step 1 of 2
+              Step 1 of 3
             </span>
           )}
         </div>
