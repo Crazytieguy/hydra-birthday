@@ -56,10 +56,13 @@ export default defineSchema({
     facilitatorIds: v.array(v.id('users')),
     needsFacilitator: v.optional(v.boolean()),
     hidden: v.optional(v.boolean()),
-    // When guests could first see the row — set on visible create and on
-    // every unhide, absent for rows that were visible from birth (fall back
-    // to _creationTime). Drives the "new since you voted" split.
+    // Set on every unhide; absent for rows visible from birth (readers fall
+    // back to _creationTime). Drives the "new since you voted" split.
     visibleSince: v.optional(v.number()),
+    // True only for guest-proposed rows (written by propose, preserved by
+    // admin edits). Provenance for withdrawal: admin- and seed-created rows
+    // must never become guest-deletable.
+    proposal: v.optional(v.boolean()),
   }).index('by_catalogKey', ['catalogKey']),
 
   // One row per (guest, party session). No row = wouldn't attend.

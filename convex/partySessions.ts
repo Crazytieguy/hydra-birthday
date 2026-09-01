@@ -6,11 +6,7 @@ import {
   sessionQuery,
 } from './lib/auth'
 import { takeAll } from './lib/collect'
-import {
-  collapseWhitespace,
-  DESCRIPTION_MAX_LENGTH,
-  TITLE_MAX_LENGTH,
-} from './lib/names'
+import { validateText } from './lib/names'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
@@ -44,6 +40,12 @@ const myVoteQuery = (
 const facilitatedBy = (all: Array<Doc<'partySessions'>>, userId: Id<'users'>) =>
   all.find((session) => session.facilitatorIds.includes(userId))
 
+// Only a guest-proposed row still solely theirs may be withdrawn; the
+// Withdraw button and the server guard share this rule. The provenance flag
+// keeps admin-created rows (which also lack a catalogKey) guest-undeletable.
+const isOwnProposal = (session: Doc<'partySessions'>) =>
+  session.proposal === true && session.facilitatorIds.length === 1
+
 async function facilitatorNames(ctx: QueryCtx, session: Doc<'partySessions'>) {
   const users = await Promise.all(
     session.facilitatorIds.map((id) => ctx.db.get('users', id)),
@@ -71,45 +73,47 @@ export const list = sessionQuery({
     const myVotes = new Map(
       myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
     )
-    const sessions = await Promise.all(
-      all
-        .filter((session) => session.hidden !== true)
-        .map(async (session) => ({
-          _id: session._id,
-          addedAt: session.visibleSince ?? session._creationTime,
-          title: session.title,
-          description: session.description ?? null,
-          facilitatorNames: await facilitatorNames(ctx, session),
-          needsFacilitator: session.needsFacilitator === true,
-          myVote: myVotes.get(session._id) ?? null,
-        })),
-    )
+    const facilitated = facilitatedBy(all, ctx.user._id)
+    const [sessions, facilitatedVotes] = await Promise.all([
+      Promise.all(
+        all
+          .filter((session) => session.hidden !== true)
+          .map(async (session) => ({
+            _id: session._id,
+            addedAt: session.visibleSince ?? session._creationTime,
+            title: session.title,
+            description: session.description ?? null,
+            facilitatorNames: await facilitatorNames(ctx, session),
+            needsFacilitator: session.needsFacilitator === true,
+            myVote: myVotes.get(session._id) ?? null,
+          })),
+      ),
+      facilitated
+        ? ctx.db
+            .query('votes')
+            .withIndex('by_partySessionId', (q) =>
+              q.eq('partySessionId', facilitated._id),
+            )
+            .take(2)
+        : Promise.resolve([]),
+    ])
     const order = (id: Id<'partySessions'>) => fnv1a(`${ctx.user._id}:${id}`)
     sessions.sort(
       (a, b) => order(a._id) - order(b._id) || a._id.localeCompare(b._id),
     )
-    const facilitated = facilitatedBy(all, ctx.user._id)
     // hasOtherVotes leaks one deliberate bit (someone else voted for their
     // session) so the edit form can warn against rewriting it wholesale.
+    // Votes are unique per user+session, so among any two votes at least one
+    // is someone else's.
     const myFacilitatedSession = facilitated
       ? {
           _id: facilitated._id,
           title: facilitated.title,
           description: facilitated.description ?? null,
-          // Withdrawable = an actual proposal: not seeded, solely theirs.
-          canWithdraw:
-            facilitated.catalogKey === undefined &&
-            facilitated.facilitatorIds.length === 1,
-          // Votes are unique per user+session, so among any two votes at
-          // least one is someone else's.
-          hasOtherVotes: (
-            await ctx.db
-              .query('votes')
-              .withIndex('by_partySessionId', (q) =>
-                q.eq('partySessionId', facilitated._id),
-              )
-              .take(2)
-          ).some((vote) => vote.userId !== ctx.user._id),
+          canWithdraw: isOwnProposal(facilitated),
+          hasOtherVotes: facilitatedVotes.some(
+            (vote) => vote.userId !== ctx.user._id,
+          ),
         }
       : null
     return {
@@ -133,13 +137,26 @@ export const propose = sessionMutation({
       title,
       description,
       facilitatorIds: [ctx.user._id],
+      proposal: true,
     })
   },
 })
 
-// Facilitators can rewrite their own session's text; everything else about
-// the row (facilitators, hidden, catalogKey) stays admin-owned. Bound to an
+// The fetch-and-ownership gate both guest mutations share. Bound to an
 // explicit id so a stale form can never write into a different session.
+async function getMineOrThrow(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  partySessionId: Id<'partySessions'>,
+) {
+  const session = await ctx.db.get('partySessions', partySessionId)
+  if (!session || !session.facilitatorIds.includes(userId))
+    throw new ConvexError({ code: 'NOT_FOUND' as const })
+  return session
+}
+
+// Facilitators can rewrite their own session's text; everything else about
+// the row (facilitators, hidden, catalogKey) stays admin-owned.
 export const updateMine = sessionMutation({
   args: {
     partySessionId: v.id('partySessions'),
@@ -148,9 +165,7 @@ export const updateMine = sessionMutation({
   },
   handler: async (ctx, args) => {
     const { title, description } = validateText(args)
-    const session = await ctx.db.get('partySessions', args.partySessionId)
-    if (!session || !session.facilitatorIds.includes(ctx.user._id))
-      throw new ConvexError({ code: 'NOT_FOUND' as const })
+    await getMineOrThrow(ctx, ctx.user._id, args.partySessionId)
     await ctx.db.patch('partySessions', args.partySessionId, {
       title,
       description,
@@ -164,10 +179,8 @@ export const updateMine = sessionMutation({
 export const withdrawMine = sessionMutation({
   args: { partySessionId: v.id('partySessions') },
   handler: async (ctx, { partySessionId }) => {
-    const session = await ctx.db.get('partySessions', partySessionId)
-    if (!session || !session.facilitatorIds.includes(ctx.user._id))
-      throw new ConvexError({ code: 'NOT_FOUND' as const })
-    if (session.catalogKey !== undefined || session.facilitatorIds.length !== 1)
+    const session = await getMineOrThrow(ctx, ctx.user._id, partySessionId)
+    if (!isOwnProposal(session))
       throw new ConvexError({ code: 'CANNOT_WITHDRAW' as const })
     await deleteSessionWithVotes(ctx, partySessionId)
     return null
@@ -224,16 +237,6 @@ const editableFields = {
   hidden: v.boolean(),
 }
 
-function validateText(edit: { title: string; description?: string }) {
-  const title = collapseWhitespace(edit.title)
-  if (!title || title.length > TITLE_MAX_LENGTH)
-    throw new ConvexError({ code: 'INVALID_TITLE' as const })
-  const description = edit.description?.trim()
-  if (description && description.length > DESCRIPTION_MAX_LENGTH)
-    throw new ConvexError({ code: 'INVALID_DESCRIPTION' as const })
-  return { title, description: description ? description : undefined }
-}
-
 // Admin edits also verify the client-supplied facilitator ids exist.
 async function validateEdit(
   ctx: MutationCtx,
@@ -243,10 +246,11 @@ async function validateEdit(
     facilitatorIds: Array<Id<'users'>>
   },
 ) {
-  for (const id of edit.facilitatorIds) {
-    if (!(await ctx.db.get('users', id)))
-      throw new ConvexError({ code: 'NOT_FOUND' as const })
-  }
+  const users = await Promise.all(
+    edit.facilitatorIds.map((id) => ctx.db.get('users', id)),
+  )
+  if (users.some((user) => !user))
+    throw new ConvexError({ code: 'NOT_FOUND' as const })
   return validateText(edit)
 }
 
@@ -293,7 +297,6 @@ export const create = adminMutation({
       facilitatorIds: args.facilitatorIds,
       needsFacilitator: args.needsFacilitator || undefined,
       hidden: args.hidden || undefined,
-      visibleSince: args.hidden ? undefined : Date.now(),
     })
   },
 })
@@ -308,6 +311,7 @@ export const update = adminMutation({
     const { title, description } = await validateEdit(ctx, edit)
     await ctx.db.replace('partySessions', partySessionId, {
       catalogKey: session.catalogKey,
+      proposal: session.proposal,
       title,
       description,
       facilitatorIds: edit.facilitatorIds,

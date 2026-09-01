@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { describeError } from '@/lib/errors'
@@ -22,6 +23,50 @@ export function Screen({
 
 export function ErrorText({ message }: { message: string | null }) {
   return message ? <p className="text-sm text-destructive">{message}</p> : null
+}
+
+// A destructive action takes two clicks: the button restates itself before
+// acting, and re-arms once the run settles. type="button" so it never
+// submits an enclosing form.
+export function ConfirmButton({
+  label,
+  confirmLabel,
+  busy,
+  size,
+  className,
+  onConfirm,
+}: {
+  label: string
+  confirmLabel: string
+  busy: boolean
+  size?: 'default' | 'sm'
+  className?: string
+  onConfirm: () => Promise<unknown>
+}) {
+  const [confirming, setConfirming] = useState(false)
+  if (confirming)
+    return (
+      <Button
+        type="button"
+        variant="destructive"
+        size={size}
+        disabled={busy}
+        onClick={() => void onConfirm().finally(() => setConfirming(false))}
+      >
+        {confirmLabel}
+      </Button>
+    )
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size={size}
+      className={className}
+      onClick={() => setConfirming(true)}
+    >
+      {label}
+    </Button>
+  )
 }
 
 const STEP_COUNT = 3

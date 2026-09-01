@@ -10,6 +10,18 @@ export const DESCRIPTION_MAX_LENGTH = 2000
 export const collapseWhitespace = (raw: string) =>
   raw.trim().replace(/\s+/g, ' ')
 
+// A session's guest-editable text: title collapsed and capped, description
+// trimmed, blank description stored as absent.
+export function validateText(edit: { title: string; description?: string }) {
+  const title = collapseWhitespace(edit.title)
+  if (!title || title.length > TITLE_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_TITLE' as const })
+  const description = edit.description?.trim()
+  if (description && description.length > DESCRIPTION_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_DESCRIPTION' as const })
+  return { title, description: description || undefined }
+}
+
 // A guest's display name: trimmed, single-spaced, 1–60 characters.
 export function normalizeName(raw: string): string {
   const name = collapseWhitespace(raw)

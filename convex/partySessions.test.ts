@@ -228,13 +228,14 @@ describe('proposals', () => {
     await expect(propose(t, sessionToken, 'Another one')).rejects.toEqual(
       failsWith('ALREADY_FACILITATING'),
     )
-    // The hidden session still reads as their spent slot.
+    // The hidden session still reads as their spent slot — but it isn't a
+    // proposal they authored, so it isn't theirs to withdraw.
     expect((await listFor(t, sessionToken)).myFacilitatedSession).toEqual({
       _id: expect.any(String),
       title: 'Secret Fusion Dance',
       description: null,
       hasOtherVotes: false,
-      canWithdraw: true,
+      canWithdraw: false,
     })
   })
 
@@ -366,6 +367,47 @@ describe('proposals', () => {
         partySessionId: bobsOwn,
       }),
     ).rejects.toEqual(failsWith('NOT_FOUND'))
+  })
+
+  test('the sole facilitator of an admin-created session cannot withdraw it', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken, userId } = await joinAs(t, 'Alice')
+    const id = await t.mutation(api.partySessions.create, {
+      sessionToken: adminToken,
+      title: 'Organizer Special',
+      facilitatorIds: [userId],
+      needsFacilitator: false,
+      hidden: false,
+    })
+    expect((await listFor(t, sessionToken)).myFacilitatedSession).toMatchObject(
+      { _id: id, canWithdraw: false },
+    )
+    await expect(
+      t.mutation(api.partySessions.withdrawMine, {
+        sessionToken,
+        partySessionId: id,
+      }),
+    ).rejects.toEqual(failsWith('CANNOT_WITHDRAW'))
+  })
+
+  test('admin edits preserve withdrawability', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken } = await joinAs(t, 'Alice')
+    const id = await propose(t, sessionToken, 'My Idea')
+    const facilitatorIds = (
+      await t.query(api.partySessions.adminList, { sessionToken: adminToken })
+    ).find((s) => s._id === id)!.facilitatorIds
+    await t.mutation(api.partySessions.update, {
+      sessionToken: adminToken,
+      partySessionId: id,
+      title: 'My Idea, retitled',
+      facilitatorIds,
+      needsFacilitator: false,
+      hidden: false,
+    })
+    expect(
+      (await listFor(t, sessionToken)).myFacilitatedSession?.canWithdraw,
+    ).toBe(true)
   })
 
   test("hasOtherVotes ignores the proposer's own vote", async () => {

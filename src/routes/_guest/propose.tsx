@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ErrorText, StepHeader } from '@/components/screens'
+import { ConfirmButton, ErrorText, StepHeader } from '@/components/screens'
 import {
   sessionQueryOptions,
   useSessionAction,
@@ -64,8 +64,6 @@ function SessionForm({ mine }: { mine: MyFacilitatedSession }) {
   const action = mine === null ? propose : updateMine
   const [title, setTitle] = useState(mine?.title ?? '')
   const [description, setDescription] = useState(mine?.description ?? '')
-  // Withdrawing is two clicks: the button restates itself before it acts.
-  const [confirmingWithdraw, setConfirmingWithdraw] = useState(false)
 
   async function submit() {
     // The server normalizes both fields (trims, drops a blank description).
@@ -129,23 +127,16 @@ function SessionForm({ mine }: { mine: MyFacilitatedSession }) {
           </Button>
         )}
         {mine?.canWithdraw && (
-          <Button
-            type="button"
-            variant="ghost"
+          <ConfirmButton
+            label="Withdraw"
+            confirmLabel="Sure? Its votes go too"
+            busy={withdraw.busy}
             className="text-destructive"
-            disabled={withdraw.busy}
-            onClick={() => {
-              if (confirmingWithdraw)
-                void withdraw.run({ partySessionId: mine._id })
-              else setConfirmingWithdraw(true)
-            }}
-          >
-            {confirmingWithdraw ? 'Sure? Its votes go too' : 'Withdraw'}
-          </Button>
+            onConfirm={() => withdraw.run({ partySessionId: mine._id })}
+          />
         )}
       </div>
-      <ErrorText message={action.error} />
-      <ErrorText message={withdraw.error} />
+      <ErrorText message={action.error ?? withdraw.error} />
     </form>
   )
 }

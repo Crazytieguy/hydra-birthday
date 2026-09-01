@@ -118,7 +118,7 @@ function Step({
 }: {
   number: number
   title: string
-  detail?: string
+  detail: string
   lockedDetail?: string
   to: '/sessions' | '/availability' | '/propose'
   state: 'done' | 'current' | 'locked'
@@ -141,9 +141,7 @@ function Step({
         >
           {title}
         </h2>
-        {detailText && (
-          <p className="text-muted-foreground text-sm">{detailText}</p>
-        )}
+        <p className="text-muted-foreground text-sm">{detailText}</p>
       </div>
       {state !== 'locked' && <span className="text-muted-foreground">→</span>}
     </div>

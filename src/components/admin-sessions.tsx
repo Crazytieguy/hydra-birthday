@@ -33,7 +33,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ErrorText } from '@/components/screens'
+import { ConfirmButton, ErrorText } from '@/components/screens'
 import { useSessionAction, useSessionQuery } from '@/lib/guest'
 
 type SessionRow = (typeof api.partySessions.adminList._returnType)[number]
@@ -123,7 +123,6 @@ function SessionRowView({
   onEdit: () => void
 }) {
   const remove = useSessionAction(api.partySessions.remove)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   return (
     <TableRow>
@@ -151,28 +150,13 @@ function SessionRowView({
         <Button variant="ghost" size="sm" onClick={onEdit}>
           Edit
         </Button>
-        {confirmingDelete ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={remove.busy}
-            onClick={() =>
-              void remove.run({ partySessionId: session._id }).finally(() => {
-                setConfirmingDelete(false)
-              })
-            }
-          >
-            Really delete, votes included
-          </Button>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setConfirmingDelete(true)}
-          >
-            Delete
-          </Button>
-        )}
+        <ConfirmButton
+          label="Delete"
+          confirmLabel="Really delete, votes included"
+          size="sm"
+          busy={remove.busy}
+          onConfirm={() => remove.run({ partySessionId: session._id })}
+        />
       </TableCell>
     </TableRow>
   )
