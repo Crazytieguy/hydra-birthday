@@ -162,7 +162,12 @@ describe('proposals', () => {
       '  Bring a blanket.  ',
     )
     const { sessions, myFacilitatedSession } = await listFor(t, sessionToken)
-    expect(myFacilitatedSession).toEqual({ _id: id, title: 'Cuddle Puddle' })
+    expect(myFacilitatedSession).toEqual({
+      _id: id,
+      title: 'Cuddle Puddle',
+      description: 'Bring a blanket.',
+      hasOtherVotes: false,
+    })
     expect(sessions.find((s) => s._id === id)).toMatchObject({
       title: 'Cuddle Puddle',
       description: 'Bring a blanket.',
@@ -226,6 +231,8 @@ describe('proposals', () => {
     expect((await listFor(t, sessionToken)).myFacilitatedSession).toEqual({
       _id: expect.any(String),
       title: 'Secret Fusion Dance',
+      description: null,
+      hasOtherVotes: false,
     })
   })
 
@@ -233,6 +240,55 @@ describe('proposals', () => {
     const t = convexTest(schema, modules)
     await expect(propose(t, 'bogus', 'Anything')).rejects.toEqual(
       failsWith('UNAUTHENTICATED'),
+    )
+  })
+
+  test('updateMine rewrites the text and can clear the description', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    await propose(t, sessionToken, 'First cut', 'Rough idea')
+    await t.mutation(api.partySessions.updateMine, {
+      sessionToken,
+      title: '  Second   cut ',
+    })
+    expect((await listFor(t, sessionToken)).myFacilitatedSession).toMatchObject(
+      { title: 'Second cut', description: null },
+    )
+    await expect(
+      t.mutation(api.partySessions.updateMine, { sessionToken, title: ' ' }),
+    ).rejects.toEqual(failsWith('INVALID_TITLE'))
+  })
+
+  test('updateMine without a session to run is refused', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken } = await joinAs(t, 'Alice')
+    await expect(
+      t.mutation(api.partySessions.updateMine, {
+        sessionToken,
+        title: 'Anything',
+      }),
+    ).rejects.toEqual(failsWith('NOT_FOUND'))
+  })
+
+  test("hasOtherVotes ignores the proposer's own vote", async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken: alice } = await joinAs(t, 'Alice')
+    const { sessionToken: bob } = await joinAs(t, 'Bob')
+    const id = await propose(t, alice, 'Quiet Hour')
+
+    const vote = (sessionToken: string) =>
+      t.mutation(api.partySessions.setVote, {
+        sessionToken,
+        partySessionId: id,
+        strength: 'regular' as const,
+      })
+    await vote(alice)
+    expect((await listFor(t, alice)).myFacilitatedSession?.hasOtherVotes).toBe(
+      false,
+    )
+    await vote(bob)
+    expect((await listFor(t, alice)).myFacilitatedSession?.hasOtherVotes).toBe(
+      true,
     )
   })
 })

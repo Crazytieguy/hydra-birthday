@@ -39,6 +39,11 @@ const myVoteQuery = (
     )
     .unique()
 
+// The one-proposal-per-guest rule: facilitating any session, hidden included,
+// spends the slot (deleting the session is what frees it).
+const facilitatedBy = (all: Array<Doc<'partySessions'>>, userId: Id<'users'>) =>
+  all.find((session) => session.facilitatorIds.includes(userId))
+
 async function facilitatorNames(ctx: QueryCtx, session: Doc<'partySessions'>) {
   const users = await Promise.all(
     session.facilitatorIds.map((id) => ctx.db.get('users', id)),
@@ -83,39 +88,62 @@ export const list = sessionQuery({
     sessions.sort(
       (a, b) => order(a._id) - order(b._id) || a._id.localeCompare(b._id),
     )
-    // Searched pre-hidden-filter: a hidden facilitated session still spends
-    // the guest's one proposal slot (deleting it is what frees the slot).
-    const facilitated = all.find((session) =>
-      session.facilitatorIds.includes(ctx.user._id),
-    )
+    const facilitated = facilitatedBy(all, ctx.user._id)
+    // hasOtherVotes leaks one deliberate bit (someone else voted for their
+    // session) so the edit form can warn against rewriting it wholesale.
+    const myFacilitatedSession = facilitated
+      ? {
+          _id: facilitated._id,
+          title: facilitated.title,
+          description: facilitated.description ?? null,
+          // Votes are unique per user+session, so among any two votes at
+          // least one is someone else's.
+          hasOtherVotes: (
+            await ctx.db
+              .query('votes')
+              .withIndex('by_partySessionId', (q) =>
+                q.eq('partySessionId', facilitated._id),
+              )
+              .take(2)
+          ).some((vote) => vote.userId !== ctx.user._id),
+        }
+      : null
     return {
       sessions,
       votesConfirmedAt: ctx.user.votesConfirmedAt ?? null,
-      myFacilitatedSession: facilitated
-        ? { _id: facilitated._id, title: facilitated.title }
-        : null,
+      myFacilitatedSession,
     }
   },
 })
 
 // A guest's one proposal: they always volunteer to run it, so the facilitator
-// slot doubles as the proposal marker — anyone already facilitating any
-// session (seeded or proposed, hidden or not) can't propose another.
+// slot doubles as the proposal marker.
 export const propose = sessionMutation({
   args: { title: v.string(), description: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const { title, description } = validateText(args)
     const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
-    if (all.some((s) => s.facilitatorIds.includes(ctx.user._id)))
+    if (facilitatedBy(all, ctx.user._id))
       throw new ConvexError({ code: 'ALREADY_FACILITATING' as const })
-    const { title, description } = await validateEdit(ctx, {
-      ...args,
-      facilitatorIds: [ctx.user._id],
-    })
     return await ctx.db.insert('partySessions', {
       title,
       description,
       facilitatorIds: [ctx.user._id],
     })
+  },
+})
+
+// Facilitators can rewrite their own session's text; everything else about
+// the row (facilitators, hidden, catalogKey) stays admin-owned.
+export const updateMine = sessionMutation({
+  args: { title: v.string(), description: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const { title, description } = validateText(args)
+    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    const mine = facilitatedBy(all, ctx.user._id)
+    if (!mine) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    await ctx.db.patch('partySessions', mine._id, { title, description })
+    return null
   },
 })
 
@@ -169,6 +197,17 @@ const editableFields = {
   hidden: v.boolean(),
 }
 
+function validateText(edit: { title: string; description?: string }) {
+  const title = collapseWhitespace(edit.title)
+  if (!title || title.length > TITLE_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_TITLE' as const })
+  const description = edit.description?.trim()
+  if (description && description.length > DESCRIPTION_MAX_LENGTH)
+    throw new ConvexError({ code: 'INVALID_DESCRIPTION' as const })
+  return { title, description: description ? description : undefined }
+}
+
+// Admin edits also verify the client-supplied facilitator ids exist.
 async function validateEdit(
   ctx: MutationCtx,
   edit: {
@@ -177,17 +216,11 @@ async function validateEdit(
     facilitatorIds: Array<Id<'users'>>
   },
 ) {
-  const title = collapseWhitespace(edit.title)
-  if (!title || title.length > TITLE_MAX_LENGTH)
-    throw new ConvexError({ code: 'INVALID_TITLE' as const })
   for (const id of edit.facilitatorIds) {
     if (!(await ctx.db.get('users', id)))
       throw new ConvexError({ code: 'NOT_FOUND' as const })
   }
-  const description = edit.description?.trim()
-  if (description && description.length > DESCRIPTION_MAX_LENGTH)
-    throw new ConvexError({ code: 'INVALID_DESCRIPTION' as const })
-  return { title, description: description ? description : undefined }
+  return validateText(edit)
 }
 
 export const adminList = adminQuery({

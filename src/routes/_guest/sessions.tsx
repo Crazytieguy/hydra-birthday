@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import {
   EDIT_DEADLINE_LABEL,
@@ -8,7 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { HEART, HeartVote, nextVote } from '@/components/heart-vote'
-import { ErrorText } from '@/components/screens'
+import { ErrorText, StepHeader } from '@/components/screens'
 import {
   sessionQueryOptions,
   useSessionAction,
@@ -67,19 +67,36 @@ function SessionsPage() {
     },
   )
   const strongCount = data.sessions.filter((s) => s.myVote === 'strong').length
-  const firstPass = data.votesConfirmedAt === null
+  const votedAt = data.votesConfirmedAt
+  const firstPass = votedAt === null
   // Sessions that arrived after the guest finished their first voting pass
   // (proposals mostly) get pulled into their own section up top so they're
   // hard to miss. The baseline is write-once, so the section only grows.
-  const isNew = (session: SessionItem) =>
-    data.votesConfirmedAt !== null &&
-    session._creationTime > data.votesConfirmedAt
-  const newSessions = data.sessions.filter(isNew)
-  const mainSessions = data.sessions.filter((session) => !isNew(session))
+  const newSessions =
+    votedAt === null
+      ? []
+      : data.sessions.filter((session) => session._creationTime > votedAt)
+  const mainSessions =
+    votedAt === null
+      ? data.sessions
+      : data.sessions.filter((session) => session._creationTime <= votedAt)
   // A fixed split (not CSS columns) so expanding a description never
   // reshuffles rows between columns.
   const mid = Math.ceil(mainSessions.length / 2)
   const columns = [mainSessions.slice(0, mid), mainSessions.slice(mid)]
+
+  const renderRow = (session: SessionItem) => (
+    <SessionRow
+      key={session._id}
+      session={session}
+      onCycle={() =>
+        void setVote.run({
+          partySessionId: session._id,
+          strength: nextVote(session.myVote),
+        })
+      }
+    />
+  )
 
   async function doneVoting() {
     const result = await confirm.run({})
@@ -91,16 +108,7 @@ function SessionsPage() {
     // strong-vote pill sits below the Done button, covering nothing.
     <div className="mx-auto max-w-4xl space-y-6 py-6 pb-24">
       <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
-        <div className="flex items-baseline justify-between">
-          <Button asChild variant="ghost" size="sm" className="-ml-3">
-            <Link to="/">← Back</Link>
-          </Button>
-          {firstPass && (
-            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
-              Step 1 of 3
-            </span>
-          )}
-        </div>
+        <StepHeader step={1} badge={firstPass} />
         <h1 className="text-3xl font-bold tracking-tight">
           Express interest in sessions
         </h1>
@@ -116,42 +124,13 @@ function SessionsPage() {
           <h2 className="font-display text-xl font-bold">
             New since you voted
           </h2>
-          <p className="text-sm">
-            These came in after you finished voting. Same hearts as below.
-          </p>
-          <div>
-            {newSessions.map((session) => (
-              <SessionRow
-                key={session._id}
-                session={session}
-                onCycle={() =>
-                  void setVote.run({
-                    partySessionId: session._id,
-                    strength: nextVote(session.myVote),
-                  })
-                }
-              />
-            ))}
-          </div>
+          <div>{newSessions.map(renderRow)}</div>
         </div>
       )}
 
       <div className="mx-auto max-w-2xl lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-x-12">
         {columns.map((column, columnIndex) => (
-          <div key={columnIndex}>
-            {column.map((session) => (
-              <SessionRow
-                key={session._id}
-                session={session}
-                onCycle={() =>
-                  void setVote.run({
-                    partySessionId: session._id,
-                    strength: nextVote(session.myVote),
-                  })
-                }
-              />
-            ))}
-          </div>
+          <div key={columnIndex}>{column.map(renderRow)}</div>
         ))}
       </div>
       <ErrorText message={setVote.error} />

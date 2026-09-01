@@ -1,7 +1,8 @@
 import { ConvexError } from 'convex/values'
 
-// Runtime-free so the browser can import the same rules (input maxLength,
-// error copy) without pulling in the Convex server bundle.
+// Shared text rules and length limits for guest-written fields. Runtime-free
+// so the browser can import the same rules (input maxLength, error copy)
+// without pulling in the Convex server bundle.
 export const NAME_MAX_LENGTH = 60
 export const TITLE_MAX_LENGTH = 80
 export const DESCRIPTION_MAX_LENGTH = 2000

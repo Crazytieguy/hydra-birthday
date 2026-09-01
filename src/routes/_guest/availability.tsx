@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import {
   EDIT_DEADLINE_LABEL,
@@ -7,7 +7,7 @@ import {
   hourKey,
 } from '../../../convex/lib/slots'
 import { Button } from '@/components/ui/button'
-import { ErrorText } from '@/components/screens'
+import { ErrorText, StepHeader } from '@/components/screens'
 import {
   sessionQueryOptions,
   useSessionAction,
@@ -99,16 +99,7 @@ function AvailabilityPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-6">
       <div className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <Button asChild variant="ghost" size="sm" className="-ml-3">
-            <Link to="/">← Back</Link>
-          </Button>
-          {firstPass && (
-            <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
-              Step 2 of 3
-            </span>
-          )}
-        </div>
+        <StepHeader step={2} badge={firstPass} />
         <h1 className="text-3xl font-bold tracking-tight">
           When can't you come?
         </h1>

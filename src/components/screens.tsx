@@ -24,6 +24,25 @@ export function ErrorText({ message }: { message: string | null }) {
   return message ? <p className="text-sm text-destructive">{message}</p> : null
 }
 
+const STEP_COUNT = 3
+
+// The guided-flow page header: Back link plus, during the guest's first pass,
+// the step badge. Every step page renders this so the count lives here.
+export function StepHeader({ step, badge }: { step: number; badge: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between">
+      <Button asChild variant="ghost" size="sm" className="-ml-3">
+        <Link to="/">← Back</Link>
+      </Button>
+      {badge && (
+        <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+          Step {step} of {STEP_COUNT}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function ErrorScreen({ error }: { error: Error }) {
   return (
     <Screen title="Something went wrong" description={describeError(error)}>

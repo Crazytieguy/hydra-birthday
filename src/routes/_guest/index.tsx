@@ -49,17 +49,7 @@ function Home() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Hi, {me.name}</h1>
         {done ? (
-          sessionData.myFacilitatedSession ? (
-            <p>
-              Thanks! Your votes and hours are in, and{' '}
-              {sessionData.myFacilitatedSession.title} is on the list.
-            </p>
-          ) : (
-            <p>
-              Thanks! Your votes and hours are in. Have an idea for a session?
-              Propose it below.
-            </p>
-          )
+          <p>Thanks!</p>
         ) : (
           <p>
             Help us plan by telling us which sessions you like and when you're
@@ -99,10 +89,10 @@ function Home() {
           title="Propose a session"
           detail={
             sessionData.myFacilitatedSession
-              ? `You're running ${sessionData.myFacilitatedSession.title}.`
+              ? `You've proposed ${sessionData.myFacilitatedSession.title}.`
               : 'Optional. Put your own idea on the list.'
           }
-          lockedDetail="After the hours."
+          lockedDetail="Fill availability first."
           to="/propose"
           state={
             sessionData.myFacilitatedSession
