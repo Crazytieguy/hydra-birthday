@@ -16,6 +16,11 @@ import {
 } from '@/lib/guest'
 
 export const Route = createFileRoute('/_guest/sessions')({
+  // Temporary A/B for Yoav: ?variant=badges marks new sessions inline
+  // instead of pulling them into a section. Remove the loser before push.
+  validateSearch: (search: Record<string, unknown>) => ({
+    variant: search.variant === 'badges' ? ('badges' as const) : undefined,
+  }),
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(
       sessionQueryOptions(api.partySessions.list, {}, context.sessionToken),
@@ -66,29 +71,27 @@ function SessionsPage() {
       }
     },
   )
+  const { variant } = Route.useSearch()
+  const badgeVariant = variant === 'badges'
   const strongCount = data.sessions.filter((s) => s.myVote === 'strong').length
   const votedAt = data.votesConfirmedAt
   const firstPass = votedAt === null
   // Sessions that arrived after the guest finished their first voting pass
   // (proposals mostly) get pulled into their own section up top so they're
   // hard to miss. The baseline is write-once, so the section only grows.
-  const newSessions =
-    votedAt === null
-      ? []
-      : data.sessions.filter((session) => session.addedAt > votedAt)
-  const mainSessions =
-    votedAt === null
-      ? data.sessions
-      : data.sessions.filter((session) => session.addedAt <= votedAt)
-  // A fixed split (not CSS columns) so expanding a description never
-  // reshuffles rows between columns.
-  const mid = Math.ceil(mainSessions.length / 2)
-  const columns = [mainSessions.slice(0, mid), mainSessions.slice(mid)]
+  const isNew = (session: SessionItem) =>
+    votedAt !== null && session.addedAt > votedAt
+  // Both variants put new sessions first; the per-user shuffle holds within
+  // each group.
+  const newSessions = data.sessions.filter(isNew)
+  const mainSessions = data.sessions.filter((session) => !isNew(session))
+  const hasNewSection = !badgeVariant && newSessions.length > 0
 
   const renderRow = (session: SessionItem) => (
     <SessionRow
       key={session._id}
       session={session}
+      isNew={badgeVariant && isNew(session)}
       onCycle={() =>
         void setVote.run({
           partySessionId: session._id,
@@ -97,6 +100,21 @@ function SessionsPage() {
       }
     />
   )
+  // A fixed split (not CSS columns) so expanding a description never
+  // reshuffles rows between columns.
+  const twoColumns = (
+    sessions: Array<SessionItem>,
+    columnClassName?: string,
+  ) => {
+    const mid = Math.ceil(sessions.length / 2)
+    return [sessions.slice(0, mid), sessions.slice(mid)].map(
+      (column, columnIndex) => (
+        <div key={columnIndex} className={columnClassName}>
+          {column.map(renderRow)}
+        </div>
+      ),
+    )
+  }
 
   async function doneVoting() {
     const result = await confirm.run({})
@@ -119,19 +137,41 @@ function SessionsPage() {
         </p>
       </div>
 
-      {newSessions.length > 0 && (
-        <div className="mx-auto max-w-2xl space-y-1 lg:mx-0">
-          <h2 className="font-display text-xl font-bold">
-            New since you voted
+      {hasNewSection && (
+        <div className="mx-auto max-w-2xl space-y-1 lg:mx-0 lg:max-w-none">
+          <h2 className="font-display text-primary text-xl font-bold">
+            New <Sparkle />
           </h2>
-          <div>{newSessions.map(renderRow)}</div>
+          {/* The rules are the tinted band's own borders so the fill meets
+              them exactly; bottom-most rows drop their divider since the
+              closing rule draws it. 1-2 new items stay single-column so a
+              half-empty right column never shows. */}
+          <div className="bg-card border-t-primary/60 border-x-primary/30 border-b-primary/30 rounded-lg border-x border-t-2 border-b px-3">
+            {newSessions.length > 2 ? (
+              <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-12">
+                {twoColumns(
+                  newSessions,
+                  '[&:last-child>div:last-child]:border-b-0 lg:[&>div:last-child]:border-b-0',
+                )}
+              </div>
+            ) : (
+              <div className="[&>div:last-child]:border-b-0">
+                {newSessions.map(renderRow)}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="mx-auto max-w-2xl lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-x-12">
-        {columns.map((column, columnIndex) => (
-          <div key={columnIndex}>{column.map(renderRow)}</div>
-        ))}
+      <div className="mx-auto max-w-2xl space-y-1 lg:mx-0 lg:max-w-none">
+        {badgeVariant && newSessions.length > 0 && (
+          <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-12">
+            {twoColumns(newSessions)}
+          </div>
+        )}
+        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-12">
+          {twoColumns(mainSessions)}
+        </div>
       </div>
       <ErrorText message={setVote.error} />
 
@@ -161,6 +201,21 @@ function SessionsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function Sparkle() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="fill-primary inline-block align-[-2px]"
+    >
+      <path d="M10.5 4 Q11.8 10.5 19.5 13 Q11.8 15.5 10.5 22 Q9.2 15.5 1.5 13 Q9.2 10.5 10.5 4 Z" />
+      <path d="M19.5 2 Q20.1 4.4 22.5 5 Q20.1 5.6 19.5 8 Q18.9 5.6 16.5 5 Q18.9 4.4 19.5 2 Z" />
+    </svg>
   )
 }
 
@@ -199,9 +254,11 @@ function Chevron({ expanded }: { expanded: boolean }) {
 
 function SessionRow({
   session,
+  isNew,
   onCycle,
 }: {
   session: SessionItem
+  isNew?: boolean
   onCycle: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -219,12 +276,12 @@ function SessionRow({
             onClick={() => setExpanded(!expanded)}
           >
             <Chevron expanded={expanded} />
-            <RowHeading session={session} />
+            <RowHeading session={session} isNew={isNew} />
           </button>
         ) : (
           <div className="flex min-w-0 flex-grow items-center gap-2.5 py-1">
             <div className="w-[18px] shrink-0" />
-            <RowHeading session={session} />
+            <RowHeading session={session} isNew={isNew} />
           </div>
         )}
         <HeartVote vote={session.myVote} onCycle={onCycle} />
@@ -243,11 +300,22 @@ function SessionRow({
   )
 }
 
-function RowHeading({ session }: { session: SessionItem }) {
+function RowHeading({
+  session,
+  isNew,
+}: {
+  session: SessionItem
+  isNew?: boolean
+}) {
   return (
     <div className="min-w-0">
       <h2 className="font-display text-[17px] leading-tight font-bold">
         {session.title}
+        {isNew && (
+          <Badge className="ml-1.5 rounded-full align-middle text-[10px] tracking-wide uppercase">
+            New ✨
+          </Badge>
+        )}
       </h2>
       {(session.facilitatorNames.length > 0 || session.needsFacilitator) && (
         <p className="text-muted-foreground text-xs">

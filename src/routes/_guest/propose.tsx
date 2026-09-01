@@ -40,8 +40,8 @@ function ProposePage() {
         {mine === null ? (
           <p>
             If you have an idea for a session, propose it below! If it gets
-            enough votes we'll schedule it. You'd be the one running it (one per
-            person).
+            enough votes we'll schedule it. The best proposals are unique
+            experiences that would be great birthday gifts.
           </p>
         ) : (
           <p>

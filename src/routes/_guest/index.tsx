@@ -90,7 +90,7 @@ function Home() {
           detail={
             sessionData.myFacilitatedSession
               ? `You've proposed ${sessionData.myFacilitatedSession.title}.`
-              : 'Optional. Put your own idea on the list.'
+              : 'Up to one proposal per attendee'
           }
           lockedDetail="Fill availability first."
           to="/propose"
@@ -121,11 +121,12 @@ function Step({
 }: {
   number: number
   title: string
-  detail: string
+  detail?: string
   lockedDetail?: string
   to: '/sessions' | '/availability' | '/propose'
   state: 'done' | 'current' | 'locked'
 }) {
+  const detailText = state === 'locked' ? (lockedDetail ?? detail) : detail
   const body = (
     <div className="flex items-center gap-4 py-4">
       <div
@@ -143,9 +144,9 @@ function Step({
         >
           {title}
         </h2>
-        <p className="text-muted-foreground text-sm">
-          {state === 'locked' ? (lockedDetail ?? detail) : detail}
-        </p>
+        {detailText && (
+          <p className="text-muted-foreground text-sm">{detailText}</p>
+        )}
       </div>
       {state !== 'locked' && <span className="text-muted-foreground">→</span>}
     </div>
