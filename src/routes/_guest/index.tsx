@@ -57,6 +57,16 @@ function Home() {
             Sep 9th!
           </p>
         )}
+        <p className="text-sm">
+          <a
+            href="https://partiful.com/e/bNjOWHJiDhX7CWV7twHK"
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground hover:text-foreground underline underline-offset-4"
+          >
+            RSVP on Partiful ↗
+          </a>
+        </p>
       </div>
 
       {/* Rows touch: each one's top padding owns the space below the

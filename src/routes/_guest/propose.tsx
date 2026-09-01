@@ -46,7 +46,7 @@ function ProposePage() {
         ) : (
           <p>
             You've proposed <strong>{mine.title}</strong>. Message Yoav, Libi,
-            or Guy if you have another idea (Cormac is at burning man).
+            Guy, or Cormac if you have another idea.
           </p>
         )}
       </div>
