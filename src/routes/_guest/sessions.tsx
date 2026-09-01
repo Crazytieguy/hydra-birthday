@@ -75,11 +75,11 @@ function SessionsPage() {
   const newSessions =
     votedAt === null
       ? []
-      : data.sessions.filter((session) => session._creationTime > votedAt)
+      : data.sessions.filter((session) => session.addedAt > votedAt)
   const mainSessions =
     votedAt === null
       ? data.sessions
-      : data.sessions.filter((session) => session._creationTime <= votedAt)
+      : data.sessions.filter((session) => session.addedAt <= votedAt)
   // A fixed split (not CSS columns) so expanding a description never
   // reshuffles rows between columns.
   const mid = Math.ceil(mainSessions.length / 2)

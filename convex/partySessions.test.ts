@@ -173,7 +173,7 @@ describe('proposals', () => {
       description: 'Bring a blanket.',
       facilitatorNames: ['Alice'],
       needsFacilitator: false,
-      _creationTime: expect.any(Number),
+      addedAt: expect.any(Number),
     })
     const adminListed = await t.query(api.partySessions.adminList, {
       sessionToken: adminToken,
@@ -246,28 +246,60 @@ describe('proposals', () => {
   test('updateMine rewrites the text and can clear the description', async () => {
     const t = convexTest(schema, modules)
     const { sessionToken } = await joinAs(t, 'Alice')
-    await propose(t, sessionToken, 'First cut', 'Rough idea')
+    const id = await propose(t, sessionToken, 'First cut', 'Rough idea')
     await t.mutation(api.partySessions.updateMine, {
       sessionToken,
+      partySessionId: id,
       title: '  Second   cut ',
     })
     expect((await listFor(t, sessionToken)).myFacilitatedSession).toMatchObject(
       { title: 'Second cut', description: null },
     )
     await expect(
-      t.mutation(api.partySessions.updateMine, { sessionToken, title: ' ' }),
+      t.mutation(api.partySessions.updateMine, {
+        sessionToken,
+        partySessionId: id,
+        title: ' ',
+      }),
     ).rejects.toEqual(failsWith('INVALID_TITLE'))
   })
 
-  test('updateMine without a session to run is refused', async () => {
+  test("updateMine refuses sessions the caller doesn't facilitate", async () => {
     const t = convexTest(schema, modules)
-    const { sessionToken } = await joinAs(t, 'Alice')
+    const { sessionToken: alice } = await joinAs(t, 'Alice')
+    const { sessionToken: bob } = await joinAs(t, 'Bob')
+    const id = await propose(t, alice, 'Quiet Hour')
     await expect(
       t.mutation(api.partySessions.updateMine, {
-        sessionToken,
-        title: 'Anything',
+        sessionToken: bob,
+        partySessionId: id,
+        title: 'Loud Hour',
       }),
     ).rejects.toEqual(failsWith('NOT_FOUND'))
+    expect((await listFor(t, alice)).myFacilitatedSession?.title).toBe(
+      'Quiet Hour',
+    )
+  })
+
+  test('updateMine edits exactly the named session for a multi-session facilitator', async () => {
+    const t = convexTest(schema, modules)
+    const { sessionToken, userId } = await joinAs(t, 'Libi')
+    const first = await addSession(t, 'Seeded One', {
+      facilitatorIds: [userId],
+    })
+    const second = await addSession(t, 'Seeded Two', {
+      facilitatorIds: [userId],
+    })
+    await t.mutation(api.partySessions.updateMine, {
+      sessionToken,
+      partySessionId: second,
+      title: 'Seeded Two, sharper',
+    })
+    const { sessions } = await listFor(t, sessionToken)
+    expect(sessions.find((s) => s._id === first)?.title).toBe('Seeded One')
+    expect(sessions.find((s) => s._id === second)?.title).toBe(
+      'Seeded Two, sharper',
+    )
   })
 
   test("hasOtherVotes ignores the proposer's own vote", async () => {
@@ -476,6 +508,34 @@ describe('admin catalog management', () => {
     const raw = await t.query(api.schedule.raw, { sessionToken: adminToken })
     expect(raw.sessions.find((s) => s._id === id)).toBeUndefined()
     expect(raw.votes).toHaveLength(0)
+  })
+
+  test('unhiding a session marks it new for already-confirmed guests', async () => {
+    const { t, adminToken } = await adminSetup()
+    const { sessionToken: guest } = await joinAs(t, 'Alice')
+    const id = await t.mutation(api.partySessions.create, {
+      sessionToken: adminToken,
+      title: 'Drafted quietly',
+      facilitatorIds: [],
+      needsFacilitator: false,
+      hidden: true,
+    })
+    await t.mutation(api.partySessions.confirmVotes, { sessionToken: guest })
+    const votedAt = (await listFor(t, guest)).votesConfirmedAt!
+    // The unhide must land on a later clock tick than the confirmation.
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    await t.mutation(api.partySessions.update, {
+      sessionToken: adminToken,
+      partySessionId: id,
+      title: 'Drafted quietly',
+      facilitatorIds: [],
+      needsFacilitator: false,
+      hidden: false,
+    })
+    const revealed = (await listFor(t, guest)).sessions.find(
+      (s) => s._id === id,
+    )!
+    expect(revealed.addedAt).toBeGreaterThan(votedAt)
   })
 
   test('schedule.raw joins everything the organizers need', async () => {

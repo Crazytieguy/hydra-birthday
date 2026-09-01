@@ -66,7 +66,14 @@ function SessionForm({ mine }: { mine: MyFacilitatedSession }) {
 
   async function submit() {
     // The server normalizes both fields (trims, drops a blank description).
-    const result = await action.run({ title, description })
+    const result =
+      mine === null
+        ? await propose.run({ title, description })
+        : await updateMine.run({
+            partySessionId: mine._id,
+            title,
+            description,
+          })
     if (result !== undefined) void navigate({ to: '/' })
   }
 

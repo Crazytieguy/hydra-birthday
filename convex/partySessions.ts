@@ -76,7 +76,7 @@ export const list = sessionQuery({
         .filter((session) => session.hidden !== true)
         .map(async (session) => ({
           _id: session._id,
-          _creationTime: session._creationTime,
+          addedAt: session.visibleSince ?? session._creationTime,
           title: session.title,
           description: session.description ?? null,
           facilitatorNames: await facilitatorNames(ctx, session),
@@ -134,15 +134,23 @@ export const propose = sessionMutation({
 })
 
 // Facilitators can rewrite their own session's text; everything else about
-// the row (facilitators, hidden, catalogKey) stays admin-owned.
+// the row (facilitators, hidden, catalogKey) stays admin-owned. Bound to an
+// explicit id so a stale form can never write into a different session.
 export const updateMine = sessionMutation({
-  args: { title: v.string(), description: v.optional(v.string()) },
+  args: {
+    partySessionId: v.id('partySessions'),
+    title: v.string(),
+    description: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const { title, description } = validateText(args)
-    const all = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
-    const mine = facilitatedBy(all, ctx.user._id)
-    if (!mine) throw new ConvexError({ code: 'NOT_FOUND' as const })
-    await ctx.db.patch('partySessions', mine._id, { title, description })
+    const session = await ctx.db.get('partySessions', args.partySessionId)
+    if (!session || !session.facilitatorIds.includes(ctx.user._id))
+      throw new ConvexError({ code: 'NOT_FOUND' as const })
+    await ctx.db.patch('partySessions', args.partySessionId, {
+      title,
+      description,
+    })
     return null
   },
 })
@@ -266,6 +274,7 @@ export const create = adminMutation({
       facilitatorIds: args.facilitatorIds,
       needsFacilitator: args.needsFacilitator || undefined,
       hidden: args.hidden || undefined,
+      visibleSince: args.hidden ? undefined : Date.now(),
     })
   },
 })
@@ -285,6 +294,11 @@ export const update = adminMutation({
       facilitatorIds: edit.facilitatorIds,
       needsFacilitator: edit.needsFacilitator || undefined,
       hidden: edit.hidden || undefined,
+      // Unhiding is when the session first reaches guests.
+      visibleSince:
+        session.hidden === true && !edit.hidden
+          ? Date.now()
+          : session.visibleSince,
     })
     return null
   },

@@ -56,6 +56,10 @@ export default defineSchema({
     facilitatorIds: v.array(v.id('users')),
     needsFacilitator: v.optional(v.boolean()),
     hidden: v.optional(v.boolean()),
+    // When guests could first see the row — set on visible create and on
+    // every unhide, absent for rows that were visible from birth (fall back
+    // to _creationTime). Drives the "new since you voted" split.
+    visibleSince: v.optional(v.number()),
   }).index('by_catalogKey', ['catalogKey']),
 
   // One row per (guest, party session). No row = wouldn't attend.
