@@ -57,14 +57,11 @@ function Home() {
             Sep 9th!
           </p>
         )}
-        {me.isAdmin && (
-          <Button asChild variant="outline" size="sm">
-            <Link to="/admin">Admin</Link>
-          </Button>
-        )}
       </div>
 
-      <div className="space-y-4">
+      {/* Rows touch: each one's top padding owns the space below the
+          previous divider, so the hover fill reaches it. */}
+      <div className="-mt-4">
         <Step
           number={1}
           title="Express interest in sessions"
@@ -128,7 +125,7 @@ function Step({
 }) {
   const detailText = state === 'locked' ? (lockedDetail ?? detail) : detail
   const body = (
-    <div className="flex items-center gap-4 py-4">
+    <div className="flex items-center gap-4 pt-8 pb-4">
       <div
         className={`font-display flex size-9 shrink-0 items-center justify-center rounded-full border text-lg font-bold ${
           state === 'current'

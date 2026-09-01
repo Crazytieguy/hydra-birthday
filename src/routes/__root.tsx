@@ -3,6 +3,7 @@ import {
   Link,
   Scripts,
   createRootRouteWithContext,
+  useMatch,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
@@ -13,6 +14,7 @@ import appCss from '../styles.css?url'
 import baloo2Woff2 from '@fontsource-variable/baloo-2/files/baloo-2-latin-wght-normal.woff2?url'
 import nunitoSansWoff2 from '@fontsource-variable/nunito-sans/files/nunito-sans-latin-wght-normal.woff2?url'
 import { HEART } from '@/components/heart-vote'
+import { Button } from '@/components/ui/button'
 import { readSessionToken } from '@/lib/session'
 
 interface RouterContext {
@@ -72,6 +74,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   shellComponent: RootDocument,
 })
 
+// Admins get an Admin link in the nav on every signed-in page. The `me`
+// snapshot comes from the _guest layout's context; outside it there's no
+// signed-in guest, so no button.
+function AdminNavButton() {
+  const match = useMatch({ from: '/_guest', shouldThrow: false })
+  if (!match?.context.me.isAdmin) return null
+  return (
+    <Button asChild variant="outline" size="sm">
+      <Link to="/admin">Admin</Link>
+    </Button>
+  )
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -79,7 +94,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-dvh">
-        <header className="mx-auto flex h-14 max-w-5xl items-center px-4">
+        {/* Same max width as the widest page bodies (sessions, admin) so the
+            nav edges line up with content and never shift between pages. */}
+        <header className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
           <Link
             to="/"
             className="font-display flex items-center gap-1.5 text-lg font-bold tracking-tight"
@@ -95,6 +112,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <path d={HEART} />
             </svg>
           </Link>
+          <AdminNavButton />
         </header>
         <main className="mx-auto w-full px-4 pb-16">{children}</main>
         <TanStackDevtools
