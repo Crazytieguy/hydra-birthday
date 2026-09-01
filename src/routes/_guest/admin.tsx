@@ -17,7 +17,7 @@ export const Route = createFileRoute('/_guest/admin')({
 })
 
 const tabs = [
-  { to: '/admin/sessions', label: 'Sessions' },
+  { to: '/admin/activities', label: 'Activities' },
   { to: '/admin/invites', label: 'Invites' },
   { to: '/admin/guests', label: 'Guests' },
   { to: '/admin/schedule', label: 'Schedule' },

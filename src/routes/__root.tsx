@@ -24,7 +24,7 @@ interface RouterContext {
 
 const PROD_ORIGIN = 'https://hydra-birthday.code-bloom.app'
 const DESCRIPTION =
-  "You're invited to a birthday weekend, Sep 12-13! Vote on sessions and tell us when you're free."
+  "You're invited to a birthday weekend, Sep 12-13! Vote on activities and tell us when you're free."
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   // Runs on every navigation, on both sides; every route sees

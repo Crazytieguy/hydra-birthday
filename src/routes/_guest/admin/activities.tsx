@@ -3,7 +3,7 @@ import { api } from '../../../../convex/_generated/api'
 import { AdminSessions } from '@/components/admin-sessions'
 import { sessionQueryOptions } from '@/lib/guest'
 
-export const Route = createFileRoute('/_guest/admin/sessions')({
+export const Route = createFileRoute('/_guest/admin/activities')({
   loader: async ({ context }) => {
     const { sessionToken } = context
     await Promise.all([

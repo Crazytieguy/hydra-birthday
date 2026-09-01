@@ -52,7 +52,7 @@ function Home() {
           <p>Thanks!</p>
         ) : (
           <p>
-            Help us plan by telling us which sessions you like and when you're
+            Help us plan by telling us which activities you like and when you're
             available, we'll crunch the data and post a final schedule by Wed
             Sep 9th!
           </p>
@@ -74,13 +74,13 @@ function Home() {
       <div className="-mt-4">
         <Step
           number={1}
-          title="Express interest in sessions"
+          title="Express interest in activities"
           detail={
             voteCount === 0
               ? 'Vote for what you want to happen.'
               : `${voteCount} vote${voteCount === 1 ? '' : 's'} in so far.`
           }
-          to="/sessions"
+          to="/activities"
           state={doneVoting ? 'done' : 'current'}
         />
         <Step
@@ -93,7 +93,7 @@ function Home() {
         />
         <Step
           number={3}
-          title="Propose a session"
+          title="Propose an activity"
           detail={
             sessionData.myFacilitatedSession
               ? `You've proposed ${sessionData.myFacilitatedSession.title}.`
@@ -130,7 +130,7 @@ function Step({
   title: string
   detail: string
   lockedDetail?: string
-  to: '/sessions' | '/availability' | '/propose'
+  to: '/activities' | '/availability' | '/propose'
   state: 'done' | 'current' | 'locked'
 }) {
   const detailText = state === 'locked' ? (lockedDetail ?? detail) : detail

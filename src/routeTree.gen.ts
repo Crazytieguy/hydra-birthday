@@ -12,16 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as GuestIndexRouteImport } from './routes/_guest/index'
+import { Route as GuestActivitiesRouteImport } from './routes/_guest/activities'
 import { Route as GuestAdminRouteImport } from './routes/_guest/admin'
 import { Route as GuestAvailabilityRouteImport } from './routes/_guest/availability'
 import { Route as GuestProposeRouteImport } from './routes/_guest/propose'
-import { Route as GuestSessionsRouteImport } from './routes/_guest/sessions'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GuestAdminIndexRouteImport } from './routes/_guest/admin/index'
+import { Route as GuestAdminActivitiesRouteImport } from './routes/_guest/admin/activities'
 import { Route as GuestAdminGuestsRouteImport } from './routes/_guest/admin/guests'
 import { Route as GuestAdminInvitesRouteImport } from './routes/_guest/admin/invites'
 import { Route as GuestAdminScheduleRouteImport } from './routes/_guest/admin/schedule'
-import { Route as GuestAdminSessionsRouteImport } from './routes/_guest/admin/sessions'
 
 const GuestRoute = GuestRouteImport.update({
   id: '/_guest',
@@ -35,6 +35,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const GuestIndexRoute = GuestIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => GuestRoute,
+} as any)
+const GuestActivitiesRoute = GuestActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => GuestRoute,
 } as any)
 const GuestAdminRoute = GuestAdminRouteImport.update({
@@ -52,11 +57,6 @@ const GuestProposeRoute = GuestProposeRouteImport.update({
   path: '/propose',
   getParentRoute: () => GuestRoute,
 } as any)
-const GuestSessionsRoute = GuestSessionsRouteImport.update({
-  id: '/sessions',
-  path: '/sessions',
-  getParentRoute: () => GuestRoute,
-} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -65,6 +65,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
 const GuestAdminIndexRoute = GuestAdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => GuestAdminRoute,
+} as any)
+const GuestAdminActivitiesRoute = GuestAdminActivitiesRouteImport.update({
+  id: '/activities',
+  path: '/activities',
   getParentRoute: () => GuestAdminRoute,
 } as any)
 const GuestAdminGuestsRoute = GuestAdminGuestsRouteImport.update({
@@ -82,53 +87,48 @@ const GuestAdminScheduleRoute = GuestAdminScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => GuestAdminRoute,
 } as any)
-const GuestAdminSessionsRoute = GuestAdminSessionsRouteImport.update({
-  id: '/sessions',
-  path: '/sessions',
-  getParentRoute: () => GuestAdminRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof GuestIndexRoute
   '/welcome': typeof WelcomeRoute
+  '/activities': typeof GuestActivitiesRoute
   '/admin': typeof GuestAdminRouteWithChildren
   '/availability': typeof GuestAvailabilityRoute
   '/propose': typeof GuestProposeRoute
-  '/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/admin/activities': typeof GuestAdminActivitiesRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
-  '/admin/sessions': typeof GuestAdminSessionsRoute
   '/admin/': typeof GuestAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
+  '/activities': typeof GuestActivitiesRoute
   '/availability': typeof GuestAvailabilityRoute
   '/propose': typeof GuestProposeRoute
-  '/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof GuestIndexRoute
+  '/admin/activities': typeof GuestAdminActivitiesRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
-  '/admin/sessions': typeof GuestAdminSessionsRoute
   '/admin': typeof GuestAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_guest': typeof GuestRouteWithChildren
   '/welcome': typeof WelcomeRoute
+  '/_guest/activities': typeof GuestActivitiesRoute
   '/_guest/admin': typeof GuestAdminRouteWithChildren
   '/_guest/availability': typeof GuestAvailabilityRoute
   '/_guest/propose': typeof GuestProposeRoute
-  '/_guest/sessions': typeof GuestSessionsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_guest/': typeof GuestIndexRoute
+  '/_guest/admin/activities': typeof GuestAdminActivitiesRoute
   '/_guest/admin/guests': typeof GuestAdminGuestsRoute
   '/_guest/admin/invites': typeof GuestAdminInvitesRoute
   '/_guest/admin/schedule': typeof GuestAdminScheduleRoute
-  '/_guest/admin/sessions': typeof GuestAdminSessionsRoute
   '/_guest/admin/': typeof GuestAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -136,43 +136,43 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/welcome'
+    | '/activities'
     | '/admin'
     | '/availability'
     | '/propose'
-    | '/sessions'
     | '/invite/$token'
+    | '/admin/activities'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
-    | '/admin/sessions'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/welcome'
+    | '/activities'
     | '/availability'
     | '/propose'
-    | '/sessions'
     | '/invite/$token'
     | '/'
+    | '/admin/activities'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
-    | '/admin/sessions'
     | '/admin'
   id:
     | '__root__'
     | '/_guest'
     | '/welcome'
+    | '/_guest/activities'
     | '/_guest/admin'
     | '/_guest/availability'
     | '/_guest/propose'
-    | '/_guest/sessions'
     | '/invite/$token'
     | '/_guest/'
+    | '/_guest/admin/activities'
     | '/_guest/admin/guests'
     | '/_guest/admin/invites'
     | '/_guest/admin/schedule'
-    | '/_guest/admin/sessions'
     | '/_guest/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -205,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestIndexRouteImport
       parentRoute: typeof GuestRoute
     }
+    '/_guest/activities': {
+      id: '/_guest/activities'
+      path: '/activities'
+      fullPath: '/activities'
+      preLoaderRoute: typeof GuestActivitiesRouteImport
+      parentRoute: typeof GuestRoute
+    }
     '/_guest/admin': {
       id: '/_guest/admin'
       path: '/admin'
@@ -226,13 +233,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestProposeRouteImport
       parentRoute: typeof GuestRoute
     }
-    '/_guest/sessions': {
-      id: '/_guest/sessions'
-      path: '/sessions'
-      fullPath: '/sessions'
-      preLoaderRoute: typeof GuestSessionsRouteImport
-      parentRoute: typeof GuestRoute
-    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -245,6 +245,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof GuestAdminIndexRouteImport
+      parentRoute: typeof GuestAdminRoute
+    }
+    '/_guest/admin/activities': {
+      id: '/_guest/admin/activities'
+      path: '/activities'
+      fullPath: '/admin/activities'
+      preLoaderRoute: typeof GuestAdminActivitiesRouteImport
       parentRoute: typeof GuestAdminRoute
     }
     '/_guest/admin/guests': {
@@ -268,29 +275,22 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestAdminScheduleRouteImport
       parentRoute: typeof GuestAdminRoute
     }
-    '/_guest/admin/sessions': {
-      id: '/_guest/admin/sessions'
-      path: '/sessions'
-      fullPath: '/admin/sessions'
-      preLoaderRoute: typeof GuestAdminSessionsRouteImport
-      parentRoute: typeof GuestAdminRoute
-    }
   }
 }
 
 interface GuestAdminRouteChildren {
+  GuestAdminActivitiesRoute: typeof GuestAdminActivitiesRoute
   GuestAdminGuestsRoute: typeof GuestAdminGuestsRoute
   GuestAdminInvitesRoute: typeof GuestAdminInvitesRoute
   GuestAdminScheduleRoute: typeof GuestAdminScheduleRoute
-  GuestAdminSessionsRoute: typeof GuestAdminSessionsRoute
   GuestAdminIndexRoute: typeof GuestAdminIndexRoute
 }
 
 const GuestAdminRouteChildren: GuestAdminRouteChildren = {
+  GuestAdminActivitiesRoute: GuestAdminActivitiesRoute,
   GuestAdminGuestsRoute: GuestAdminGuestsRoute,
   GuestAdminInvitesRoute: GuestAdminInvitesRoute,
   GuestAdminScheduleRoute: GuestAdminScheduleRoute,
-  GuestAdminSessionsRoute: GuestAdminSessionsRoute,
   GuestAdminIndexRoute: GuestAdminIndexRoute,
 }
 
@@ -299,18 +299,18 @@ const GuestAdminRouteWithChildren = GuestAdminRoute._addFileChildren(
 )
 
 interface GuestRouteChildren {
+  GuestActivitiesRoute: typeof GuestActivitiesRoute
   GuestAdminRoute: typeof GuestAdminRouteWithChildren
   GuestAvailabilityRoute: typeof GuestAvailabilityRoute
   GuestProposeRoute: typeof GuestProposeRoute
-  GuestSessionsRoute: typeof GuestSessionsRoute
   GuestIndexRoute: typeof GuestIndexRoute
 }
 
 const GuestRouteChildren: GuestRouteChildren = {
+  GuestActivitiesRoute: GuestActivitiesRoute,
   GuestAdminRoute: GuestAdminRouteWithChildren,
   GuestAvailabilityRoute: GuestAvailabilityRoute,
   GuestProposeRoute: GuestProposeRoute,
-  GuestSessionsRoute: GuestSessionsRoute,
   GuestIndexRoute: GuestIndexRoute,
 }
 
@@ -324,12 +324,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

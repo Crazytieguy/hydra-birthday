@@ -16,7 +16,7 @@ import {
   useSessionQuery,
 } from '@/lib/guest'
 
-export const Route = createFileRoute('/_guest/sessions')({
+export const Route = createFileRoute('/_guest/activities')({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(
       sessionQueryOptions(api.partySessions.list, {}, context.sessionToken),
@@ -122,11 +122,11 @@ function SessionsPage() {
       <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
         <StepHeader step={1} badge={firstPass} />
         <h1 className="text-3xl font-bold tracking-tight">
-          Express interest in sessions
+          Express interest in activities
         </h1>
         <p>
-          Tap <InlineHeart /> for sessions you'd attend, and tap again for
-          sessions you'd <em>really</em> want to attend (aim for up to{' '}
+          Tap <InlineHeart /> for activities you'd attend, and tap again for
+          activities you'd <em>really</em> want to attend (aim for up to{' '}
           {STRONG_VOTE_TARGET})
         </p>
       </div>

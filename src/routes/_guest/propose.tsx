@@ -36,10 +36,12 @@ function ProposePage() {
     <div className="mx-auto max-w-2xl space-y-6 py-6">
       <div className="space-y-2">
         <StepHeader step={3} badge={mine === null} />
-        <h1 className="text-3xl font-bold tracking-tight">Propose a session</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          Propose an activity
+        </h1>
         {mine === null ? (
           <p>
-            If you have an idea for a session, propose it below! If it gets
+            If you have an idea for an activity, propose it below! If it gets
             enough votes we'll schedule it. The best proposals are unique
             experiences that would be great birthday gifts.
           </p>

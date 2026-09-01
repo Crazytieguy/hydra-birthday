@@ -152,7 +152,7 @@ function Sessions({ data }: { data: Raw }) {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold tracking-tight">
-        Sessions, most wanted first
+        Activities, most wanted first
       </h2>
       {sessions.map((session) => {
         // Everyone whose availability matters for this session.

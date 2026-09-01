@@ -74,15 +74,15 @@ export function AdminSessions() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sessions</CardTitle>
+        <CardTitle>Activities</CardTitle>
         <CardDescription>
-          The catalog guests vote on. Hiding a session keeps its votes; deleting
-          one erases them.
+          The catalog guests vote on. Hiding an activity keeps its votes;
+          deleting one erases them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button variant="secondary" onClick={() => setDraft(emptyDraft)}>
-          New session
+          New activity
         </Button>
         <Table>
           <TableHeader>
@@ -196,7 +196,7 @@ function SessionDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {form.partySessionId ? 'Edit session' : 'New session'}
+            {form.partySessionId ? 'Edit activity' : 'New activity'}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
