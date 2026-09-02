@@ -138,6 +138,9 @@
   html {
     @apply font-sans;
     color-scheme: light dark;
+    /* Classic (mouse) scrollbars only appear on pages tall enough to scroll,
+       which would nudge the centered nav sideways between pages. */
+    scrollbar-gutter: stable;
   }
   h1,
   h2,

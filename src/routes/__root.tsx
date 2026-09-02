@@ -94,25 +94,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="min-h-dvh">
-        {/* Same max width as the widest page bodies (sessions, admin) so the
-            nav edges line up with content and never shift between pages. */}
-        <header className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Link
-            to="/"
-            className="font-display flex items-center gap-1.5 text-lg font-bold tracking-tight"
-          >
-            Hydra Birthday
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className="fill-primary"
+        {/* Padding sits outside the centered column, like <main> below, so
+            the logo and Admin button line up with the widest page bodies
+            (activities, admin) instead of sitting one gutter inside them. */}
+        <header className="px-4">
+          <div className="mx-auto flex h-14 max-w-4xl items-center justify-between">
+            <Link
+              to="/"
+              className="font-display flex items-center gap-1.5 text-lg font-bold tracking-tight"
             >
-              <path d={HEART} />
-            </svg>
-          </Link>
-          <AdminNavButton />
+              Hydra Birthday
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="fill-primary"
+              >
+                <path d={HEART} />
+              </svg>
+            </Link>
+            <AdminNavButton />
+          </div>
         </header>
         <main className="mx-auto w-full px-4 pb-16">{children}</main>
         <TanStackDevtools
