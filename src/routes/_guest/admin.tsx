@@ -21,6 +21,7 @@ const tabs = [
   { to: '/admin/invites', label: 'Invites' },
   { to: '/admin/guests', label: 'Guests' },
   { to: '/admin/schedule', label: 'Schedule' },
+  { to: '/admin/export', label: 'Export' },
 ] as const
 
 function AdminLayout() {

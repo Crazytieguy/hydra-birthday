@@ -19,6 +19,7 @@ import { Route as GuestProposeRouteImport } from './routes/_guest/propose'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GuestAdminIndexRouteImport } from './routes/_guest/admin/index'
 import { Route as GuestAdminActivitiesRouteImport } from './routes/_guest/admin/activities'
+import { Route as GuestAdminExportRouteImport } from './routes/_guest/admin/export'
 import { Route as GuestAdminGuestsRouteImport } from './routes/_guest/admin/guests'
 import { Route as GuestAdminInvitesRouteImport } from './routes/_guest/admin/invites'
 import { Route as GuestAdminScheduleRouteImport } from './routes/_guest/admin/schedule'
@@ -72,6 +73,11 @@ const GuestAdminActivitiesRoute = GuestAdminActivitiesRouteImport.update({
   path: '/activities',
   getParentRoute: () => GuestAdminRoute,
 } as any)
+const GuestAdminExportRoute = GuestAdminExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => GuestAdminRoute,
+} as any)
 const GuestAdminGuestsRoute = GuestAdminGuestsRouteImport.update({
   id: '/guests',
   path: '/guests',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/propose': typeof GuestProposeRoute
   '/invite/$token': typeof InviteTokenRoute
   '/admin/activities': typeof GuestAdminActivitiesRoute
+  '/admin/export': typeof GuestAdminExportRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof GuestIndexRoute
   '/admin/activities': typeof GuestAdminActivitiesRoute
+  '/admin/export': typeof GuestAdminExportRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/invite/$token': typeof InviteTokenRoute
   '/_guest/': typeof GuestIndexRoute
   '/_guest/admin/activities': typeof GuestAdminActivitiesRoute
+  '/_guest/admin/export': typeof GuestAdminExportRoute
   '/_guest/admin/guests': typeof GuestAdminGuestsRoute
   '/_guest/admin/invites': typeof GuestAdminInvitesRoute
   '/_guest/admin/schedule': typeof GuestAdminScheduleRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/propose'
     | '/invite/$token'
     | '/admin/activities'
+    | '/admin/export'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/'
     | '/admin/activities'
+    | '/admin/export'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/_guest/'
     | '/_guest/admin/activities'
+    | '/_guest/admin/export'
     | '/_guest/admin/guests'
     | '/_guest/admin/invites'
     | '/_guest/admin/schedule'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestAdminActivitiesRouteImport
       parentRoute: typeof GuestAdminRoute
     }
+    '/_guest/admin/export': {
+      id: '/_guest/admin/export'
+      path: '/export'
+      fullPath: '/admin/export'
+      preLoaderRoute: typeof GuestAdminExportRouteImport
+      parentRoute: typeof GuestAdminRoute
+    }
     '/_guest/admin/guests': {
       id: '/_guest/admin/guests'
       path: '/guests'
@@ -280,6 +299,7 @@ declare module '@tanstack/react-router' {
 
 interface GuestAdminRouteChildren {
   GuestAdminActivitiesRoute: typeof GuestAdminActivitiesRoute
+  GuestAdminExportRoute: typeof GuestAdminExportRoute
   GuestAdminGuestsRoute: typeof GuestAdminGuestsRoute
   GuestAdminInvitesRoute: typeof GuestAdminInvitesRoute
   GuestAdminScheduleRoute: typeof GuestAdminScheduleRoute
@@ -288,6 +308,7 @@ interface GuestAdminRouteChildren {
 
 const GuestAdminRouteChildren: GuestAdminRouteChildren = {
   GuestAdminActivitiesRoute: GuestAdminActivitiesRoute,
+  GuestAdminExportRoute: GuestAdminExportRoute,
   GuestAdminGuestsRoute: GuestAdminGuestsRoute,
   GuestAdminInvitesRoute: GuestAdminInvitesRoute,
   GuestAdminScheduleRoute: GuestAdminScheduleRoute,
