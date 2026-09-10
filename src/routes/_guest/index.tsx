@@ -64,9 +64,6 @@ function Home() {
           <h2 className="font-display text-primary text-lg font-bold">
             Tentative schedule
           </h2>
-          <p className="text-sm">
-            What's on, and when. More gets added as votes come in.
-          </p>
         </div>
         <span className="text-primary">→</span>
       </Link>

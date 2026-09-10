@@ -69,13 +69,18 @@ export type Extra = {
 // Things that aren't on the board at all.
 export const extras: Array<Extra> = [
   { day: 'sat', start: 13, len: 0.5, kind: 'frame', frameLabel: 'Arrival' },
-  // Sunday morning is open on purpose: the last votes decide what goes there.
-  {
+  // Open slots: the last votes decide what goes there.
+  ...[
+    [10, 3],
+    [13, 2],
+    [15, 3],
+    [20, 2],
+  ].map(([start, len]): Extra => ({
     day: 'sun',
-    start: 10,
-    len: 3,
+    start,
+    len,
     kind: 'activity',
     title: '?',
     note: 'Nothing is placed here yet. The last votes decide what goes in.',
-  },
+  })),
 ]
