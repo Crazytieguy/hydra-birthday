@@ -21,16 +21,14 @@ export const all = adminQuery({
       ])
     return {
       grid: days,
-      users: await Promise.all(
-        users.map(async (user) => ({
-          _id: user._id,
-          _creationTime: user._creationTime,
-          name: user.name,
-          isAdmin: user.isAdmin,
-          joinedAt: await userJoinedAt(ctx, user),
-          votesConfirmedAt: user.votesConfirmedAt ?? null,
-        })),
-      ),
+      users: users.map((user) => ({
+        _id: user._id,
+        _creationTime: user._creationTime,
+        name: user.name,
+        isAdmin: user.isAdmin,
+        joinedAt: userJoinedAt(user),
+        votesConfirmedAt: user.votesConfirmedAt ?? null,
+      })),
       activities: sessions.map((session) => ({
         _id: session._id,
         _creationTime: session._creationTime,

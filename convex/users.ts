@@ -32,15 +32,13 @@ export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query('users').order('desc').take(1000)
-    return await Promise.all(
-      users.map(async (user) => ({
-        _id: user._id,
-        name: user.name,
-        isAdmin: user.isAdmin,
-        createdAt: user._creationTime,
-        joinedAt: await userJoinedAt(ctx, user),
-      })),
-    )
+    return users.map((user) => ({
+      _id: user._id,
+      name: user.name,
+      isAdmin: user.isAdmin,
+      createdAt: user._creationTime,
+      joinedAt: userJoinedAt(user),
+    }))
   },
 })
 

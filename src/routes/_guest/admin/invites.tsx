@@ -206,16 +206,18 @@ function InviteRowView({
         )}
       </TableCell>
       <TableCell className="text-muted-foreground">
-        {invite.claimedAt
-          ? `Claimed${claimedByName ? ` by ${claimedByName}` : ''}`
-          : 'Unclaimed'}
+        {invite.revokedAt
+          ? 'Revoked'
+          : invite.claimedAt
+            ? `Claimed${claimedByName ? ` by ${claimedByName}` : ''}`
+            : 'Unclaimed'}
         <ErrorText message={revoke.error} />
       </TableCell>
       <TableCell className="text-muted-foreground">
         <Day timestamp={invite.createdAt} />
       </TableCell>
       <TableCell className="text-right">
-        {!invite.claimedAt && (
+        {!invite.revokedAt && (
           <Confirm
             trigger={
               <Button variant="ghost" size="sm" disabled={revoke.busy}>

@@ -55,9 +55,9 @@ export const persistSession = createServerFn({ method: 'POST' })
 
 // The session secret is minted before the claim mutation and kept in
 // sessionStorage until the cookie provably holds it, so a retry after a lost
-// response reuses it and the (idempotent) mutation accepts it instead of
-// reporting the link as used. Returns null when the browser can't hold the
-// secret or a cookie — then the invite must not be consumed at all.
+// response reuses it and the (idempotent) mutation is a no-op instead of
+// opening a second session. Returns null when the browser can't hold the
+// secret or a cookie — then nothing should be claimed at all.
 const pendingKey = (inviteToken: string) => `hb_pending_session:${inviteToken}`
 
 export function getOrCreatePendingSessionToken(
@@ -78,14 +78,6 @@ export function getOrCreatePendingSessionToken(
     return sessionStorage.getItem(key) === fresh ? fresh : null
   } catch {
     return null
-  }
-}
-
-export function hasPendingSessionToken(inviteToken: string): boolean {
-  try {
-    return sessionStorage.getItem(pendingKey(inviteToken)) !== null
-  } catch {
-    return false
   }
 }
 

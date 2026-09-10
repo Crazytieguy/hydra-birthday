@@ -24,30 +24,29 @@ export default defineSchema({
     .index('by_tokenHash', ['tokenHash'])
     .index('by_userId', ['userId']),
 
-  // Invite links. Every mint pre-creates the target user, so `forUserId` is
-  // always set on new invites (optional only until the prod migration
-  // converts pre-unification rows). Claiming binds a browser to the account;
-  // the first claim may also rename it (prefilled from the user's minted
-  // name), later claims sign further browsers in. `label` is the mint-time
-  // snapshot of the name.
+  // Invite links. Every mint pre-creates the target user. A link is never
+  // consumed: claiming binds a browser to the account, and the same link
+  // signs further browsers in until it is revoked. The first claim may also
+  // rename the account (prefilled from the user's minted name). `label` is
+  // the mint-time snapshot of the name; `claimedAt`, `claimedByUserId` and
+  // `claimedSessionTokenHash` record the first use only.
   invites: defineTable({
     tokenHash: v.string(),
     label: v.string(),
-    forUserId: v.optional(v.id('users')),
+    forUserId: v.id('users'),
     replacesSessions: v.optional(v.boolean()),
     grantsAdmin: v.optional(v.boolean()),
     createdByUserId: v.optional(v.id('users')),
     claimedAt: v.optional(v.number()),
     claimedByUserId: v.optional(v.id('users')),
-    // Lets the same browser retry a claim whose response was lost in transit.
     claimedSessionTokenHash: v.optional(v.string()),
-    // Set when a recovery link is first used or an admin signs the account
-    // out everywhere: the link stops signing anyone in. Rows stay for history.
+    // Set when an admin revokes the link, a recovery link is first used, or
+    // the account is signed out everywhere: the link stops signing anyone
+    // in. Rows stay for history.
     revokedAt: v.optional(v.number()),
   })
     .index('by_tokenHash', ['tokenHash'])
-    .index('by_forUserId', ['forUserId'])
-    .index('by_claimedByUserId', ['claimedByUserId']),
+    .index('by_forUserId', ['forUserId']),
 
   // The party programming guests vote on. Named partySessions because
   // `sessions` is taken by auth browser sessions; UI copy still says

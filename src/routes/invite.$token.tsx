@@ -1,11 +1,5 @@
-import { useEffect, useState } from 'react'
-import {
-  Link,
-  Navigate,
-  createFileRoute,
-  redirect,
-  useNavigate,
-} from '@tanstack/react-router'
+import { useState } from 'react'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { convexQuery } from '@convex-dev/react-query'
 import { useSuspenseQuery } from '@tanstack/react-query'
@@ -23,20 +17,19 @@ import {
   SESSION_COOKIE,
   clearPendingSessionToken,
   getOrCreatePendingSessionToken,
-  hasPendingSessionToken,
   persistSession,
   readCookie,
 } from '@/lib/session'
 
 // Public. Rendering never joins; only the Join button does, via a mutation,
 // so link-preview bots (Signal, WhatsApp, Partiful) never sign anyone in.
+// A link is never used up: it signs in every browser it is opened on until
+// an admin revokes it.
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ context, params }) => {
-    const invite = await context.queryClient.ensureQueryData(
+    await context.queryClient.ensureQueryData(
       peekQuery(params.token, context.sessionToken),
     )
-    // Reopening the link you joined with: nothing to do here, go home.
-    if (invite.status === 'claimed' && invite.mine) throw redirect({ to: '/' })
   },
   component: InvitePage,
 })
@@ -55,8 +48,9 @@ function InvitePage() {
   const { token } = Route.useParams()
   const { sessionToken } = Route.useRouteContext()
   const { data: invite } = useSuspenseQuery(peekQuery(token, sessionToken))
-  // Once Join is tapped the live `peek` flips to "claimed" as soon as the
-  // mutation commits; keep the form up until we've navigated away.
+  // Once Join is tapped the live `peek` flips from a first-time link to an
+  // existing-account one as soon as the mutation commits; keep the form up
+  // until we've navigated away.
   const [joining, setJoining] = useState<AvailableInvite | null>(null)
   const shown = joining ?? invite
 
@@ -68,8 +62,6 @@ function InvitePage() {
       />
     )
   }
-  if (shown.status === 'claimed')
-    return <ClaimedScreen token={token} mine={shown.mine} />
   if (shown.kind === 'existing' && shown.mine) {
     return (
       <Screen
@@ -93,11 +85,7 @@ function InvitePage() {
 }
 
 // After these the pending secret is useless; forget it so a retry starts clean.
-const terminal = new Set([
-  'INVITE_CLAIMED',
-  'INVALID_INVITE',
-  'INVALID_SESSION_TOKEN',
-])
+const terminal = new Set(['INVALID_INVITE', 'INVALID_SESSION_TOKEN'])
 const COOKIES_BLOCKED =
   'Your browser is blocking cookies or storage. Enable them for this site and try again.'
 const NOT_SAVED =
@@ -213,37 +201,5 @@ function ClaimForm({
         <ErrorText message={join.error} />
       </form>
     </div>
-  )
-}
-
-function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
-  const join = useJoin(token)
-  // sessionStorage is client-only; decide after hydration to avoid a mismatch.
-  const [pending, setPending] = useState(false)
-  useEffect(() => setPending(hasPendingSessionToken(token)), [token])
-
-  // The loader already redirects; this covers the live query flipping to
-  // "claimed" while the page is open (joined in another tab, say).
-  if (mine) return <Navigate to="/" replace />
-  if (pending) {
-    return (
-      <Screen
-        title="Almost there"
-        description="Your last attempt to join didn't finish. Tap below to finish it."
-      >
-        <Button disabled={join.busy} onClick={() => void join.run()}>
-          {join.busy ? 'Joining…' : 'Finish joining'}
-        </Button>
-        <ErrorText message={join.error} />
-      </Screen>
-    )
-  }
-  // Only legacy label-only invites end up here; every link minted for an
-  // account keeps working on any device.
-  return (
-    <Screen
-      title="This link was already used"
-      description="This one can't be used again. Ask Yoav, Guy, or Libi for a new link."
-    />
   )
 }

@@ -26,7 +26,6 @@ const messages: Record<string, string> = {
   UNAUTHENTICATED: 'Your session has ended. Reload the page.',
   FORBIDDEN: "You're no longer an admin.",
   NOT_FOUND: "That doesn't exist anymore.",
-  INVITE_CLAIMED: 'That link was already used.',
   INVALID_INVITE: "That link isn't valid anymore.",
   INVALID_NAME: `Please enter a name (up to ${NAME_MAX_LENGTH} characters).`,
   INVALID_TITLE: `Please give your activity a title (up to ${TITLE_MAX_LENGTH} characters).`,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Mint one-time invite links.
+// Mint invite links.
 //
 //   bun run invite [--prod] [--admin] [--base <url>] [--file names.txt] [name ...]
 //

@@ -20,14 +20,12 @@ export const raw = adminQuery({
       takeAll(ctx.db.query('availability'), 1000),
     ])
     return {
-      users: await Promise.all(
-        users.map(async (user) => ({
-          _id: user._id,
-          name: user.name,
-          joinedAt: await userJoinedAt(ctx, user),
-          votesConfirmedAt: user.votesConfirmedAt ?? null,
-        })),
-      ),
+      users: users.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        joinedAt: userJoinedAt(user),
+        votesConfirmedAt: user.votesConfirmedAt ?? null,
+      })),
       sessions: sessions.map((session) => ({
         _id: session._id,
         title: session.title,

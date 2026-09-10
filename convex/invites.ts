@@ -33,54 +33,36 @@ export const peek = query({
     const invite = await findInvite(ctx, token)
     if (!invite || invite.revokedAt !== undefined)
       return { status: 'invalid' as const }
+    const user = await ctx.db.get('users', invite.forUserId)
+    if (!user) return { status: 'invalid' as const }
     const viewer = sessionToken
       ? await findSessionUser(ctx, sessionToken)
       : null
-    const isViewer = (userId: Id<'users'> | undefined) =>
-      viewer !== null && viewer._id === userId
     const viewerInfo = viewer && { name: viewer.name }
-    if (invite.claimedAt !== undefined && !invite.forUserId) {
-      // Legacy label-only invite: nothing to sign into after the first claim.
-      return {
-        status: 'claimed' as const,
-        mine: isViewer(invite.claimedByUserId),
-      }
-    }
-    if (invite.forUserId) {
-      const user = await ctx.db.get('users', invite.forUserId)
-      if (!user) return { status: 'invalid' as const }
-      // A first-time link keeps the editable-name UI; a link into a joined
-      // account (device, recovery) signs in under the existing name.
-      if (!(await userHasJoined(ctx, user))) {
-        return {
-          status: 'available' as const,
-          kind: 'new' as const,
-          label: user.name,
-          viewer: viewerInfo,
-        }
-      }
+    // A first-time link keeps the editable-name UI; a link into a joined
+    // account (device, recovery) signs in under the existing name.
+    if (!userHasJoined(user)) {
       return {
         status: 'available' as const,
-        kind: 'existing' as const,
-        name: user.name,
-        mine: isViewer(user._id),
+        kind: 'new' as const,
+        label: user.name,
         viewer: viewerInfo,
       }
     }
-    // Legacy invite minted before users were pre-created; goes away once
-    // migrateToForUser has run in prod.
     return {
       status: 'available' as const,
-      kind: 'new' as const,
-      label: invite.label,
+      kind: 'existing' as const,
+      name: user.name,
+      mine: viewer !== null && viewer._id === user._id,
       viewer: viewerInfo,
     }
   },
 })
 
-// Bind the caller's browser to the invite's account. The first claim joins
-// the account (and may name it); later claims from other browsers sign them
-// in too. The browser generates `sessionToken` (and keeps it until the
+// Bind the caller's browser to the invite's account. Links are never used
+// up: the first claim joins the account (and may name it), and every later
+// claim from another browser signs that browser in too. Only `revokedAt`
+// stops a link. The browser generates `sessionToken` (and keeps it until the
 // cookie is stored), so a retry after a lost response is a no-op.
 export const claim = mutation({
   args: {
@@ -95,62 +77,43 @@ export const claim = mutation({
     const invite = await findInvite(ctx, token)
     if (!invite || invite.revokedAt !== undefined)
       throw new ConvexError({ code: 'INVALID_INVITE' as const })
+    const user = await ctx.db.get('users', invite.forUserId)
+    if (!user) throw new ConvexError({ code: 'INVALID_INVITE' as const })
     const tokenHash = await hashToken(sessionToken)
     const existingSession = await findSessionByHash(ctx, tokenHash)
-    if (invite.claimedAt !== undefined) {
-      if (invite.claimedSessionTokenHash === tokenHash) return null
-      // Links into an account stay usable: opening yours on a second phone
-      // just signs that phone in too. Nothing else changes (no rename, no
-      // sign-out elsewhere); the account is whoever the invite was minted
-      // for. Legacy label-only invites have no account to sign into.
-      if (!invite.forUserId)
-        throw new ConvexError({ code: 'INVITE_CLAIMED' as const })
-      if (existingSession) {
-        // A retry whose first attempt landed (and another browser claimed
-        // in between) is done; a stranger's token can't be reused.
-        if (existingSession.userId === invite.forUserId) return null
-        throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
-      }
-      await insertSession(ctx, invite.forUserId, tokenHash)
-      return null
-    }
     if (existingSession) {
+      // A retry whose first attempt landed is done; a stranger's token
+      // can't be reused.
+      if (existingSession.userId === user._id) return null
       throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
     }
 
-    let userId: Id<'users'>
-    if (invite.forUserId) {
-      const existing = await ctx.db.get('users', invite.forUserId)
-      if (!existing) throw new ConvexError({ code: 'INVALID_INVITE' as const })
-      userId = existing._id
-      if (!(await userHasJoined(ctx, existing))) {
-        // First claim: the guest may pick their own name, and the account is
-        // now joined. Later links into the account never rename it.
-        await ctx.db.patch('users', userId, {
-          name: normalizeName(name ?? existing.name),
+    const firstUse = invite.claimedAt === undefined
+    if (firstUse) {
+      if (!userHasJoined(user)) {
+        // First claim of a first-time link: the guest may pick their own
+        // name, and the account is now joined. Later links into the account
+        // never rename it.
+        await ctx.db.patch('users', user._id, {
+          name: normalizeName(name ?? user.name),
           joinedAt: Date.now(),
         })
       }
       if (invite.replacesSessions) {
         // Recovery: whoever held the old devices or the old link is out.
-        await deleteSessions(ctx, userId)
-        await revokeInvites(ctx, userId, invite._id)
+        await deleteSessions(ctx, user._id)
+        await revokeInvites(ctx, user._id, invite._id)
       }
-    } else {
-      // Legacy invite minted before users were pre-created.
-      userId = await ctx.db.insert('users', {
-        name: normalizeName(name ?? invite.label),
-        isAdmin: invite.grantsAdmin === true,
-        joinedAt: Date.now(),
-      })
     }
 
-    await insertSession(ctx, userId, tokenHash)
-    await ctx.db.patch('invites', invite._id, {
-      claimedAt: Date.now(),
-      claimedByUserId: userId,
-      claimedSessionTokenHash: tokenHash,
-    })
+    await insertSession(ctx, user._id, tokenHash)
+    if (firstUse) {
+      await ctx.db.patch('invites', invite._id, {
+        claimedAt: Date.now(),
+        claimedByUserId: user._id,
+        claimedSessionTokenHash: tokenHash,
+      })
+    }
     return null
   },
 })
@@ -245,7 +208,7 @@ export const createForUser = adminMutation({
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get('users', userId)
     if (!user) throw new ConvexError({ code: 'NOT_FOUND' as const })
-    if (!(await userHasJoined(ctx, user)))
+    if (!userHasJoined(user))
       throw new ConvexError({ code: 'NOT_JOINED' as const })
     return await mintForUser(ctx, userId, ctx.user._id, true)
   },
@@ -259,7 +222,7 @@ export const reissueInvite = adminMutation({
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get('users', userId)
     if (!user) throw new ConvexError({ code: 'NOT_FOUND' as const })
-    if (await userHasJoined(ctx, user))
+    if (userHasJoined(user))
       throw new ConvexError({ code: 'ALREADY_JOINED' as const })
     return await mintForUser(ctx, userId, ctx.user._id, false)
   },
@@ -305,77 +268,29 @@ async function userIsReferenced(ctx: QueryCtx, userId: Id<'users'>) {
   return partySessions.some((s) => s.facilitatorIds.includes(userId))
 }
 
+// A never-used link is deleted outright (with the user it was minted for,
+// if nothing else knows them); a link someone already joined with is kept
+// for history but stops signing anyone in.
 export const revoke = adminMutation({
   args: { inviteId: v.id('invites') },
   handler: async (ctx, { inviteId }) => {
     const invite = await ctx.db.get('invites', inviteId)
     if (!invite) throw new ConvexError({ code: 'NOT_FOUND' as const })
-    if (invite.claimedAt !== undefined)
-      throw new ConvexError({ code: 'INVITE_CLAIMED' as const })
+    if (invite.claimedAt !== undefined) {
+      if (invite.revokedAt === undefined)
+        await ctx.db.patch('invites', invite._id, { revokedAt: Date.now() })
+      return null
+    }
     await ctx.db.delete('invites', invite._id)
     // A user who never joined and is referenced by nothing else only existed
     // for this link; don't leave them behind as a ghost row.
-    if (invite.forUserId) {
-      const user = await ctx.db.get('users', invite.forUserId)
-      if (
-        user &&
-        !(await userHasJoined(ctx, user)) &&
-        !(await userIsReferenced(ctx, user._id))
-      ) {
-        await ctx.db.delete('users', user._id)
-      }
-    }
+    const user = await ctx.db.get('users', invite.forUserId)
+    if (
+      user &&
+      !userHasJoined(user) &&
+      !(await userIsReferenced(ctx, user._id))
+    )
+      await ctx.db.delete('users', user._id)
     return null
-  },
-})
-
-// One-shot backfill for the invite/user unification: gives every invite a
-// `forUserId` (creating users for unclaimed pre-unification invites) and every
-// joined user a `joinedAt`. Idempotent. Both returned counts must be 0 before
-// the cleanup push that makes `forUserId` required.
-export const migrateToForUser = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const users = await takeAll(ctx.db.query('users'), 1000)
-    const invites = await takeAll(ctx.db.query('invites'), 1000)
-
-    for (const user of users) {
-      if (user.joinedAt !== undefined) continue
-      const claimedAts = invites
-        .filter((i) => i.claimedByUserId === user._id)
-        .map((i) => i.claimedAt)
-        .filter((at): at is number => at !== undefined)
-      if (claimedAts.length > 0) {
-        await ctx.db.patch('users', user._id, {
-          joinedAt: Math.min(...claimedAts),
-        })
-      }
-    }
-
-    for (const invite of invites) {
-      if (invite.forUserId) continue
-      if (invite.claimedByUserId) {
-        await ctx.db.patch('invites', invite._id, {
-          forUserId: invite.claimedByUserId,
-        })
-      } else {
-        const userId = await ctx.db.insert('users', {
-          name: normalizeName(invite.label),
-          isAdmin: invite.grantsAdmin === true,
-        })
-        await ctx.db.patch('invites', invite._id, { forUserId: userId })
-      }
-    }
-
-    const invitesAfter = await takeAll(ctx.db.query('invites'), 1000)
-    const usersAfter = await takeAll(ctx.db.query('users'), 1000)
-    return {
-      invitesMissingForUserId: invitesAfter.filter((i) => !i.forUserId).length,
-      joinedUsersMissingJoinedAt: usersAfter.filter(
-        (user) =>
-          user.joinedAt === undefined &&
-          invitesAfter.some((i) => i.claimedByUserId === user._id),
-      ).length,
-    }
   },
 })

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { MAX_SESSIONS_PER_USER } from './lib/sessions'
-import { hashToken, newToken } from './lib/tokens'
+import { newToken } from './lib/tokens'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -150,6 +150,43 @@ describe('claiming an invite', () => {
     expect(await me(t, stranger)).toMatchObject({ name: 'Stranger' })
   })
 
+  test('never wears out: every claim after the first signs one more browser in', async () => {
+    const { t } = await setup()
+    const token = await mintOne(t, 'Dana')
+    const first = await claim(t, token, 'Dana D')
+    const dana = (await me(t, first))!
+    const later = []
+    for (let i = 0; i < 4; i++) later.push(await claim(t, token, 'Nope'))
+    for (const sessionToken of later)
+      expect(await me(t, sessionToken)).toEqual(dana)
+    expect(await me(t, first)).toEqual(dana)
+    expect(await peek(t, token)).toMatchObject({
+      status: 'available',
+      kind: 'existing',
+      name: 'Dana D',
+    })
+  })
+
+  test('a link an admin revoked refuses every claim, even from a browser that used it', async () => {
+    const { t, adminToken } = await setup()
+    const token = await mintOne(t, 'Dana')
+    const phone = await claim(t, token)
+    const invite = (await listInvites(t, adminToken)).find(
+      (i) => i.label === 'Dana',
+    )!
+    await t.mutation(api.invites.revoke, {
+      sessionToken: adminToken,
+      inviteId: invite._id,
+    })
+    expect(await peek(t, token)).toEqual({ status: 'invalid' })
+    await expect(claim(t, token)).rejects.toEqual(failsWith('INVALID_INVITE'))
+    await expect(claim(t, token, undefined, phone)).rejects.toEqual(
+      failsWith('INVALID_INVITE'),
+    )
+    // The phone stays signed in; only the link is dead.
+    expect(await me(t, phone)).toMatchObject({ name: 'Dana' })
+  })
+
   test('retrying with the same session secret is idempotent (lost response)', async () => {
     const { t, adminToken } = await setup()
     const token = await mintOne(t, 'Dana')
@@ -212,7 +249,7 @@ describe('many devices', () => {
 })
 
 describe('recovery', () => {
-  test('an admin recovery link signs the account out of every other browser', async () => {
+  test('an admin recovery link signs the other browsers out on its first claim only', async () => {
     const { t, adminToken } = await setup()
     const { sessionToken: lost, user: faye } = await joinAs(t, 'Faye')
     const token = await recoveryLink(t, adminToken, faye._id)
@@ -226,6 +263,9 @@ describe('recovery', () => {
     const tablet = await claim(t, token)
     expect(await me(t, tablet)).toEqual(faye)
     expect(await me(t, found)).toEqual(faye)
+    const desk = await claim(t, token)
+    for (const sessionToken of [found, tablet, desk])
+      expect(await me(t, sessionToken)).toEqual(faye)
   })
 
   test('recovery kills the leaked original link, and only that', async () => {
@@ -269,117 +309,6 @@ describe('recovery', () => {
   })
 })
 
-describe('pre-unification data (transition safety)', () => {
-  // Builds a user the way the OLD code did: no joinedAt, a claimed invite
-  // without forUserId, a live session. Exists in prod until the migration runs.
-  async function legacyJoinedUser(t: T, name: string, claimedAt: number) {
-    const secret = newToken()
-    const userId = await t.run(async (ctx) => {
-      const legacyId = await ctx.db.insert('users', { name, isAdmin: false })
-      await ctx.db.insert('invites', {
-        tokenHash: await hashToken(newToken()),
-        label: name,
-        claimedAt,
-        claimedByUserId: legacyId,
-        claimedSessionTokenHash: await hashToken(newToken()),
-      })
-      await ctx.db.insert('sessions', {
-        userId: legacyId,
-        tokenHash: await hashToken(secret),
-      })
-      return legacyId
-    })
-    return { userId, secret }
-  }
-
-  test('a legacy user still reads as joined before the migration', async () => {
-    const { t, adminToken } = await setup()
-    const { userId, secret } = await legacyJoinedUser(t, 'Old Timer', 1000)
-
-    // They count as joined: a recovery link is allowed, a reissue is not,
-    // and the recovery link signs in under the existing name.
-    await expect(
-      t.mutation(api.invites.reissueInvite, {
-        sessionToken: adminToken,
-        userId,
-      }),
-    ).rejects.toEqual(failsWith('ALREADY_JOINED'))
-    const token = await recoveryLink(t, adminToken, userId)
-    expect(await peek(t, token)).toMatchObject({
-      kind: 'existing',
-      name: 'Old Timer',
-    })
-    const laptop = await claim(t, token, 'Hax')
-    expect(await me(t, laptop)).toMatchObject({ name: 'Old Timer' })
-    expect(await me(t, secret)).toBeNull()
-
-    // Admin views fall back to the claimed invite for the joined date.
-    const users = await t.query(api.users.list, { sessionToken: adminToken })
-    expect(users.find((u) => u._id === userId)?.joinedAt).toBe(1000)
-
-    // Recovery works, reissue refuses.
-    await recoveryLink(t, adminToken, userId)
-    await expect(
-      t.mutation(api.invites.reissueInvite, {
-        sessionToken: adminToken,
-        userId,
-      }),
-    ).rejects.toEqual(failsWith('ALREADY_JOINED'))
-  })
-
-  test('a legacy unclaimed invite still joins, creating the user at claim', async () => {
-    const { t } = await setup()
-    const token = newToken()
-    await t.run(async (ctx) => {
-      await ctx.db.insert('invites', {
-        tokenHash: await hashToken(token),
-        label: 'Latecomer',
-      })
-    })
-    expect(await peek(t, token)).toMatchObject({ kind: 'new' })
-    const sessionToken = await claim(t, token, 'Latecomer L')
-    expect(await me(t, sessionToken)).toMatchObject({ name: 'Latecomer L' })
-  })
-
-  test('migrateToForUser backfills everything and is idempotent', async () => {
-    const { t, adminToken } = await setup()
-    // A legacy user with two claimed invites (original + device link).
-    const { userId } = await legacyJoinedUser(t, 'Legacy', 2000)
-    await t.run(async (ctx) => {
-      await ctx.db.insert('invites', {
-        tokenHash: await hashToken(newToken()),
-        label: 'Legacy',
-        claimedAt: 3000,
-        claimedByUserId: userId,
-        claimedSessionTokenHash: await hashToken(newToken()),
-      })
-      // A legacy invite nobody opened yet.
-      await ctx.db.insert('invites', {
-        tokenHash: await hashToken(newToken()),
-        label: 'Never Opened',
-        grantsAdmin: true,
-      })
-    })
-
-    const counts = await t.mutation(internal.invites.migrateToForUser, {})
-    expect(counts).toEqual({
-      invitesMissingForUserId: 0,
-      joinedUsersMissingJoinedAt: 0,
-    })
-
-    const users = await t.query(api.users.list, { sessionToken: adminToken })
-    expect(users.find((u) => u._id === userId)?.joinedAt).toBe(2000)
-    expect(users.find((u) => u.name === 'Never Opened')).toMatchObject({
-      isAdmin: true,
-      joinedAt: null,
-    })
-
-    await t.mutation(internal.invites.migrateToForUser, {})
-    const again = await t.query(api.users.list, { sessionToken: adminToken })
-    expect(again.filter((u) => u.name === 'Never Opened')).toHaveLength(1)
-  })
-})
-
 describe('admin gating', () => {
   test('guests cannot mint, list, promote, or sign others out', async () => {
     const { t } = await setup()
@@ -411,7 +340,7 @@ describe('admin gating', () => {
     expect(await me(t, sessionToken)).toMatchObject({ isAdmin: false })
   })
 
-  test('admins mint invites (blank labels skipped), see them, and revoke unclaimed ones', async () => {
+  test('admins mint invites (blank labels skipped), see them, and revoke them', async () => {
     const { t, adminToken } = await setup()
     const minted = await t.mutation(api.invites.create, {
       sessionToken: adminToken,
@@ -435,13 +364,19 @@ describe('admin gating', () => {
       inviteId: heidi._id,
     })
     expect(await peek(t, minted[1].token)).toEqual({ status: 'invalid' })
+    // A link someone already joined with is kept for history but goes dead.
     const grace = listed.find((i) => i.label === 'Grace')!
-    await expect(
-      t.mutation(api.invites.revoke, {
-        sessionToken: adminToken,
-        inviteId: grace._id,
-      }),
-    ).rejects.toEqual(failsWith('INVITE_CLAIMED'))
+    await t.mutation(api.invites.revoke, {
+      sessionToken: adminToken,
+      inviteId: grace._id,
+    })
+    expect(await peek(t, minted[0].token)).toEqual({ status: 'invalid' })
+    expect(
+      (await listInvites(t, adminToken)).find((i) => i.label === 'Grace'),
+    ).toMatchObject({
+      claimedByUserId: gracie._id,
+      revokedAt: expect.any(Number),
+    })
   })
 
   test('the list tells first links and recovery links apart', async () => {
