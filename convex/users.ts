@@ -8,7 +8,7 @@ import {
 } from './lib/auth'
 import { userJoinedAt } from './lib/joined'
 import { normalizeName } from './lib/names'
-import { deleteSessions } from './lib/sessions'
+import { deleteSessions, revokeInvites } from './lib/sessions'
 
 // The signed-in guest, or null for a missing/unknown session token. Never
 // throws: the `_guest` layout uses null to send people to /welcome.
@@ -57,13 +57,15 @@ export const setAdmin = adminMutation({
   },
 })
 
-// Signs a guest out of every browser (a lost phone, a link that reached the
-// wrong person). Their account and name survive; a recovery link gets them back.
+// Signs a guest out of every browser and kills their links (a lost phone, a
+// link that reached the wrong person). Their account and name survive; a
+// recovery link gets them back.
 export const signOutEverywhere = adminMutation({
   args: { userId: v.id('users') },
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get('users', userId)
     if (!user) throw new ConvexError({ code: 'NOT_FOUND' as const })
+    await revokeInvites(ctx, userId)
     return await deleteSessions(ctx, userId)
   },
 })

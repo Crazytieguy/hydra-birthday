@@ -11,7 +11,7 @@ import {
 import { takeAll } from './lib/collect'
 import { userHasJoined } from './lib/joined'
 import { collapseWhitespace, normalizeName } from './lib/names'
-import { deleteSessions, insertSession } from './lib/sessions'
+import { deleteSessions, insertSession, revokeInvites } from './lib/sessions'
 import { MIN_SESSION_TOKEN_LENGTH, hashToken, newToken } from './lib/tokens'
 
 async function findInvite(ctx: QueryCtx, token: string) {
@@ -31,7 +31,8 @@ export const peek = query({
   args: { token: v.string(), sessionToken: v.optional(v.string()) },
   handler: async (ctx, { token, sessionToken }) => {
     const invite = await findInvite(ctx, token)
-    if (!invite) return { status: 'invalid' as const }
+    if (!invite || invite.revokedAt !== undefined)
+      return { status: 'invalid' as const }
     const viewer = sessionToken
       ? await findSessionUser(ctx, sessionToken)
       : null
@@ -92,7 +93,8 @@ export const claim = mutation({
       throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
     }
     const invite = await findInvite(ctx, token)
-    if (!invite) throw new ConvexError({ code: 'INVALID_INVITE' as const })
+    if (!invite || invite.revokedAt !== undefined)
+      throw new ConvexError({ code: 'INVALID_INVITE' as const })
     const tokenHash = await hashToken(sessionToken)
     const existingSession = await findSessionByHash(ctx, tokenHash)
     if (invite.claimedAt !== undefined) {
@@ -129,7 +131,11 @@ export const claim = mutation({
           joinedAt: Date.now(),
         })
       }
-      if (invite.replacesSessions) await deleteSessions(ctx, userId)
+      if (invite.replacesSessions) {
+        // Recovery: whoever held the old devices or the old link is out.
+        await deleteSessions(ctx, userId)
+        await revokeInvites(ctx, userId, invite._id)
+      }
     } else {
       // Legacy invite minted before users were pre-created.
       userId = await ctx.db.insert('users', {
@@ -229,9 +235,11 @@ async function mintForUser(
 }
 
 // Admin recovery for a guest whose link reached the wrong hands (or a lost
-// phone). Its first claim signs the account out everywhere else, so the old
-// devices are locked out at the moment the guest is back in. Only for guests
-// who actually joined — replacing a never-used first link is `reissueInvite`.
+// phone). Its first claim signs the account out everywhere else and revokes
+// the older links, so the old devices and the leaked link are locked out at
+// the moment the guest is back in; the recovery link itself keeps working
+// for their other devices. Only for guests who actually joined — replacing a
+// never-used first link is `reissueInvite`.
 export const createForUser = adminMutation({
   args: { userId: v.id('users') },
   handler: async (ctx, { userId }) => {
@@ -271,6 +279,7 @@ export const list = adminQuery({
       createdAt: invite._creationTime,
       claimedAt: invite.claimedAt ?? null,
       claimedByUserId: invite.claimedByUserId ?? null,
+      revokedAt: invite.revokedAt ?? null,
     }))
   },
 })

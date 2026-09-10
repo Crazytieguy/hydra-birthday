@@ -228,6 +228,26 @@ describe('recovery', () => {
     expect(await me(t, found)).toEqual(faye)
   })
 
+  test('recovery kills the leaked original link, and only that', async () => {
+    const { t, adminToken } = await setup()
+    const original = await mintOne(t, 'Faye')
+    await claim(t, original)
+    const thief = await claim(t, original)
+    const faye = (await me(t, thief))!
+    const token = await recoveryLink(t, adminToken, faye._id)
+    await claim(t, token)
+    expect(await me(t, thief)).toBeNull()
+    expect(await peek(t, original)).toEqual({ status: 'invalid' })
+    await expect(claim(t, original)).rejects.toEqual(
+      failsWith('INVALID_INVITE'),
+    )
+    expect(await peek(t, token)).toMatchObject({ status: 'available' })
+    const listed = await listInvites(t, adminToken)
+    expect(
+      listed.find((i) => i.label === 'Faye' && i.kind === 'new'),
+    ).toMatchObject({ revokedAt: expect.any(Number) })
+  })
+
   test('sign out everywhere invalidates every session but keeps the account', async () => {
     const { t, adminToken } = await setup()
     const token = await mintOne(t, 'Gus')
@@ -242,6 +262,7 @@ describe('recovery', () => {
     ).toBe(2)
     expect(await me(t, phone)).toBeNull()
     expect(await me(t, laptop)).toBeNull()
+    await expect(claim(t, token)).rejects.toEqual(failsWith('INVALID_INVITE'))
     expect(
       await t.query(api.users.list, { sessionToken: adminToken }),
     ).toContainEqual(expect.objectContaining({ _id: gus._id, name: 'Gus' }))

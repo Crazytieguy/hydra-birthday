@@ -24,11 +24,12 @@ export default defineSchema({
     .index('by_tokenHash', ['tokenHash'])
     .index('by_userId', ['userId']),
 
-  // One-time invite links. Every mint pre-creates the target user, so
-  // `forUserId` is always set on new invites (optional only until the prod
-  // migration converts pre-unification rows). Claiming binds a browser to the
-  // account; the first claim may also rename it (prefilled from the user's
-  // minted name). `label` is the mint-time snapshot of the name.
+  // Invite links. Every mint pre-creates the target user, so `forUserId` is
+  // always set on new invites (optional only until the prod migration
+  // converts pre-unification rows). Claiming binds a browser to the account;
+  // the first claim may also rename it (prefilled from the user's minted
+  // name), later claims sign further browsers in. `label` is the mint-time
+  // snapshot of the name.
   invites: defineTable({
     tokenHash: v.string(),
     label: v.string(),
@@ -40,6 +41,9 @@ export default defineSchema({
     claimedByUserId: v.optional(v.id('users')),
     // Lets the same browser retry a claim whose response was lost in transit.
     claimedSessionTokenHash: v.optional(v.string()),
+    // Set when a recovery link is first used or an admin signs the account
+    // out everywhere: the link stops signing anyone in. Rows stay for history.
+    revokedAt: v.optional(v.number()),
   })
     .index('by_tokenHash', ['tokenHash'])
     .index('by_forUserId', ['forUserId'])

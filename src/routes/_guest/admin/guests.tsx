@@ -175,7 +175,7 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
             description={
               isMe
                 ? "That includes this browser. You'll need a new link to get back in."
-                : 'Every device they joined with stops working right away. Their account and name stay, and a recovery link gets them back in.'
+                : 'Every device they joined with stops working right away, and so does their link. Their account and name stay, and a recovery link gets them back in.'
             }
             action="Sign out"
             onConfirm={() => void signOut.run({ userId: user._id })}
