@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronRightIcon } from 'lucide-react'
 import type { api } from '../../../convex/_generated/api'
 import { formatMinutes } from '../../../convex/lib/schedule'
-import { layoutDay } from '@/lib/schedule-layout'
+import { assignWashes, layoutDay } from '@/lib/schedule-layout'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
@@ -55,6 +55,9 @@ export function DayTimeline({ day }: { day: Day }) {
   const height = y(dayEnd * 60) + 1
 
   const frames = day.entries.filter((e) => e.kind === 'frame')
+  const washes = assignWashes(
+    day.entries.map((e) => ({ ...e, open: isOpenSlot(e) })),
+  )
   const layout = layoutDay(
     day.entries
       .filter((e) => e.kind === 'activity')
@@ -162,6 +165,7 @@ export function DayTimeline({ day }: { day: Day }) {
             <ScheduleBlock
               key={item._id}
               entry={item}
+              wash={washes.get(item._id)}
               onOpen={() => setOpen(item)}
               style={{
                 left: `calc(${LANE_LEFT + lane * GUTTER}px + ${lane} * ${laneWidth})`,
@@ -176,6 +180,7 @@ export function DayTimeline({ day }: { day: Day }) {
           <ScheduleRibbon
             key={item._id}
             entry={item}
+            wash={washes.get(item._id)}
             y={y}
             onOpen={() => setOpen(item)}
             style={{
@@ -223,9 +228,10 @@ const voted = (entry: Entry) => entry.myVote !== null
 const blockClass = (entry: Entry) =>
   cn(
     'font-display text-foreground hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
+    'bg-card',
     voted(entry)
-      ? 'bg-vote-fill border-vote-line hover:border-primary/70 active:border-primary/70'
-      : 'bg-card border-block-line hover:bg-accent hover:border-muted-foreground active:bg-accent active:border-muted-foreground',
+      ? 'border-vote-line text-primary hover:border-primary/70 active:border-primary/70'
+      : 'border-input hover:border-muted-foreground active:border-muted-foreground',
     // An open slot ("?") is a promise, not an activity: a big question mark
     // on a soft wash, dashed.
     isOpenSlot(entry) &&
@@ -240,12 +246,17 @@ const Chevron = ({ className }: { className?: string }) => (
   />
 )
 
+const washStyle = (wash: number | undefined): React.CSSProperties =>
+  wash === undefined ? {} : { backgroundColor: `var(--wash-${wash + 1})` }
+
 function ScheduleBlock({
   entry,
+  wash,
   onOpen,
   style,
 }: {
   entry: Entry
+  wash: number | undefined
   onOpen: () => void
   style: React.CSSProperties
 }) {
@@ -258,7 +269,7 @@ function ScheduleBlock({
         blockClass(entry),
         'flex items-start pl-2 pr-6 text-sm leading-4',
       )}
-      style={{ ...style, paddingTop: TITLE_PAD }}
+      style={{ ...style, ...washStyle(wash), paddingTop: TITLE_PAD }}
     >
       {isOpenSlot(entry) ? (
         <span className="absolute inset-0 flex items-center justify-center text-[28px] leading-none">
@@ -274,11 +285,13 @@ function ScheduleBlock({
 
 function ScheduleRibbon({
   entry,
+  wash,
   y,
   onOpen,
   style,
 }: {
   entry: Entry
+  wash: number | undefined
   y: (minutes: number) => number
   onOpen: () => void
   style: React.CSSProperties
@@ -292,7 +305,7 @@ function ScheduleRibbon({
         blockClass(entry),
         'flex items-stretch text-[13px] whitespace-nowrap',
       )}
-      style={style}
+      style={{ ...style, ...washStyle(wash) }}
     >
       {wide && (
         // Sub-spans stacked to scale, split by hairlines that land on the

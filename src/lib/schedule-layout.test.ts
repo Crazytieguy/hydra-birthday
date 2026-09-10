@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { layoutDay } from './schedule-layout'
+import { assignWashes, layoutDay } from './schedule-layout'
 
 const at = (start: number, end: number, ribbon = false, name = '') => ({
   start,
@@ -105,5 +105,39 @@ describe('layoutDay', () => {
       ['hanabi', 0, 2],
       ['', 1, 2],
     ])
+  })
+})
+
+describe('assignWashes', () => {
+  const e = (
+    _id: string,
+    title: string,
+    start: number,
+    end: number,
+    extra: Partial<{ kind: string; open: boolean }> = {},
+  ) => ({ _id, title, start, end, kind: 'activity', ...extra })
+
+  test('overlapping and touching neighbours get different washes', () => {
+    const washes = assignWashes([
+      e('a', 'Circling A', 840, 930),
+      e('b', 'Hot seat', 840, 1110),
+      e('c', 'Improv', 930, 1020),
+      e('d', 'Circling B', 930, 1020),
+    ])
+    expect(washes.get('a')).not.toBe(washes.get('b'))
+    expect(washes.get('c')).not.toBe(washes.get('a'))
+    expect(washes.get('c')).not.toBe(washes.get('b'))
+    expect(washes.get('d')).toBe(washes.get('a'))
+  })
+
+  test('frames and open slots get no wash', () => {
+    const washes = assignWashes([
+      e('f', 'Dinner', 1110, 1200, { kind: 'frame' }),
+      e('q', '?', 600, 780, { open: true }),
+      e('x', 'Yoga', 600, 630),
+    ])
+    expect(washes.has('f')).toBe(false)
+    expect(washes.has('q')).toBe(false)
+    expect(washes.get('x')).toBe(0)
   })
 })

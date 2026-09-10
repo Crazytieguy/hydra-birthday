@@ -80,3 +80,53 @@ export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
     ribbonColumns: columnCount(ribbonLanes),
   }
 }
+
+// One soft wash per activity so the day reads as many things, not one thing.
+// Assigned in start order: a block takes the first wash no overlapping or
+// touching neighbour already has, and a repeated title (Circling A/B/C) keeps
+// its wash. The static schedule images run the same rule, so they match.
+export const WASH_COUNT = 6
+
+export type Washable = {
+  _id: string
+  title: string
+  start: number
+  end: number
+  kind: string
+  open?: boolean
+}
+
+const baseTitle = (title: string) => title.replace(/\s[ABC]$/, '')
+
+export function assignWashes(entries: Array<Washable>): Map<string, number> {
+  const items = entries
+    .filter((e) => e.kind === 'activity' && !e.open)
+    .sort(
+      (a, b) =>
+        a.start - b.start || a.end - b.end || a.title.localeCompare(b.title),
+    )
+  const byTitle = new Map<string, number>()
+  const out = new Map<string, number>()
+  for (const item of items) {
+    const base = baseTitle(item.title)
+    const known = byTitle.get(base)
+    if (known !== undefined) {
+      out.set(item._id, known)
+      continue
+    }
+    const taken = new Set(
+      items
+        .filter(
+          (o) => out.has(o._id) && o.start <= item.end && item.start <= o.end,
+        )
+        .map((o) => out.get(o._id)),
+    )
+    let pick = Array.from({ length: WASH_COUNT }, (_, i) => i).find(
+      (i) => !taken.has(i),
+    )
+    if (pick === undefined) pick = byTitle.size % WASH_COUNT
+    byTitle.set(base, pick)
+    out.set(item._id, pick)
+  }
+  return out
+}

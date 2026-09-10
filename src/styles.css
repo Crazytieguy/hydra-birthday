@@ -40,7 +40,6 @@
   --color-frame-fill: var(--frame-fill);
   --color-slot-fill: var(--slot-fill);
   --color-ink-dim: var(--ink-dim);
-  --color-block-line: var(--block-line);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -86,10 +85,15 @@
   /* Schedule: meal/party bands, the wash behind an open "?" slot, and the
      ink for the hour axis and band labels (muted, but darker than
      --muted-foreground so 13px digits read at a glance). */
-  --frame-fill: #e3dabf;
+  --frame-fill: #e9e2cc;
   --slot-fill: rgba(249, 227, 234, 0.35);
   --ink-dim: #6b6555;
-  --block-line: #b8af95;
+  --wash-1: #e6ecd8;
+  --wash-2: #dfe8ee;
+  --wash-3: #ece3ef;
+  --wash-4: #f6e4d2;
+  --wash-5: #dbeee6;
+  --wash-6: #f3ecc9;
   --input: #d3cbb4;
   --ring: #d64e7e;
   --chart-1: oklch(0.87 0 0);
@@ -128,10 +132,15 @@
     --border: #3b382c;
     --vote-fill: #3a2631;
     --vote-line: #8a4f66;
-    --frame-fill: #443e2a;
+    --frame-fill: #3c3726;
     --slot-fill: rgba(58, 38, 49, 0.35);
     --ink-dim: #b3ac97;
-    --block-line: #625c45;
+    --wash-1: #2f3526;
+    --wash-2: #262f36;
+    --wash-3: #322a38;
+    --wash-4: #3b2e24;
+    --wash-5: #243530;
+    --wash-6: #383420;
     --input: #4a4635;
     --ring: #ee7ba3;
     --chart-1: oklch(0.87 0 0);
