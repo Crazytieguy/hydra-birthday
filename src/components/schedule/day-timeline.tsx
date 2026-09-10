@@ -128,14 +128,14 @@ export function DayTimeline({ day }: { day: Day }) {
             >
               {formatMinutes(h * 60)}
             </div>
-            <div className={rule} style={{ left: LANE_LEFT }} />
+            <div className={rule} style={{ left: 0 }} />
           </div>
         ))}
         {halfHours.map((m) => (
           <div
             key={m}
             className={cn(rule, 'opacity-40')}
-            style={{ left: LANE_LEFT, top: y(m) }}
+            style={{ left: 0, top: y(m) }}
           />
         ))}
 
