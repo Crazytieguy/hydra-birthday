@@ -7,7 +7,6 @@ import {
   adminQuery,
   findSessionByHash,
   findSessionUser,
-  sessionMutation,
 } from './lib/auth'
 import { takeAll } from './lib/collect'
 import { userHasJoined } from './lib/joined'
@@ -24,8 +23,8 @@ async function findInvite(ctx: QueryCtx, token: string) {
 }
 
 // What an invite page shows before the guest taps "Join". Public by design:
-// the token itself is the secret. Reading never consumes the invite, so link
-// previews (Signal, WhatsApp, Partiful) can't burn it. `sessionToken` (the
+// the token itself is the secret. Reading never claims the invite, so link
+// previews (Signal, WhatsApp, Partiful) never join on the guest's behalf. `sessionToken` (the
 // browser's current cookie, if any) identifies the viewer so the page can say
 // who they already are and recognise a link they own.
 export const peek = query({
@@ -38,13 +37,14 @@ export const peek = query({
       : null
     const isViewer = (userId: Id<'users'> | undefined) =>
       viewer !== null && viewer._id === userId
-    if (invite.claimedAt !== undefined) {
+    const viewerInfo = viewer && { name: viewer.name }
+    if (invite.claimedAt !== undefined && !invite.forUserId) {
+      // Legacy label-only invite: nothing to sign into after the first claim.
       return {
         status: 'claimed' as const,
         mine: isViewer(invite.claimedByUserId),
       }
     }
-    const viewerInfo = viewer && { name: viewer.name }
     if (invite.forUserId) {
       const user = await ctx.db.get('users', invite.forUserId)
       if (!user) return { status: 'invalid' as const }
@@ -77,11 +77,10 @@ export const peek = query({
   },
 })
 
-// Consume a one-time invite and bind the caller's browser to an account.
-// The browser generates `sessionToken` (and keeps it until the cookie is
-// stored), so a retry after a lost response is a no-op instead of a burned
-// link. Convex serializes mutations: two devices racing on one link can't
-// both win.
+// Bind the caller's browser to the invite's account. The first claim joins
+// the account (and may name it); later claims from other browsers sign them
+// in too. The browser generates `sessionToken` (and keeps it until the
+// cookie is stored), so a retry after a lost response is a no-op.
 export const claim = mutation({
   args: {
     token: v.string(),
@@ -95,11 +94,25 @@ export const claim = mutation({
     const invite = await findInvite(ctx, token)
     if (!invite) throw new ConvexError({ code: 'INVALID_INVITE' as const })
     const tokenHash = await hashToken(sessionToken)
+    const existingSession = await findSessionByHash(ctx, tokenHash)
     if (invite.claimedAt !== undefined) {
       if (invite.claimedSessionTokenHash === tokenHash) return null
-      throw new ConvexError({ code: 'INVITE_CLAIMED' as const })
+      // Links into an account stay usable: opening yours on a second phone
+      // just signs that phone in too. Nothing else changes (no rename, no
+      // sign-out elsewhere); the account is whoever the invite was minted
+      // for. Legacy label-only invites have no account to sign into.
+      if (!invite.forUserId)
+        throw new ConvexError({ code: 'INVITE_CLAIMED' as const })
+      if (existingSession) {
+        // A retry whose first attempt landed (and another browser claimed
+        // in between) is done; a stranger's token can't be reused.
+        if (existingSession.userId === invite.forUserId) return null
+        throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
+      }
+      await insertSession(ctx, invite.forUserId, tokenHash)
+      return null
     }
-    if (await findSessionByHash(ctx, tokenHash)) {
+    if (existingSession) {
       throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
     }
 
@@ -186,8 +199,8 @@ export const createInternal = internalMutation({
   handler: async (ctx, args) => await mint(ctx, args),
 })
 
-// A link into an existing account. Only one unclaimed one exists per user at
-// a time: minting a new one forgets the previous.
+// A fresh link into an existing account. Only one unclaimed one exists per
+// user at a time: minting a new one forgets the previous.
 async function mintForUser(
   ctx: MutationCtx,
   userId: Id<'users'>,
@@ -215,17 +228,10 @@ async function mintForUser(
   return { token }
 }
 
-// "Use another device": a one-time link into the caller's own account.
-export const createForSelf = sessionMutation({
-  args: {},
-  handler: async (ctx) =>
-    await mintForUser(ctx, ctx.user._id, ctx.user._id, false),
-})
-
-// Admin recovery for a guest who lost the browser their link was claimed on.
-// Claiming it signs the account out everywhere else, so the lost device is
-// locked out at the same moment the guest is back in. Only for guests who
-// actually joined — replacing a never-used first link is `reissueInvite`.
+// Admin recovery for a guest whose link reached the wrong hands (or a lost
+// phone). Its first claim signs the account out everywhere else, so the old
+// devices are locked out at the moment the guest is back in. Only for guests
+// who actually joined — replacing a never-used first link is `reissueInvite`.
 export const createForUser = adminMutation({
   args: { userId: v.id('users') },
   handler: async (ctx, { userId }) => {
@@ -260,13 +266,7 @@ export const list = adminQuery({
     return invites.map((invite) => ({
       _id: invite._id,
       label: invite.label,
-      // Self-minted links are the only device links; a reissued first-time
-      // link has an admin creator and no `replacesSessions`, so it reads 'new'.
-      kind: invite.replacesSessions
-        ? ('recovery' as const)
-        : invite.forUserId && invite.forUserId === invite.createdByUserId
-          ? ('device' as const)
-          : ('new' as const),
+      kind: invite.replacesSessions ? ('recovery' as const) : ('new' as const),
       grantsAdmin: invite.grantsAdmin === true,
       createdAt: invite._creationTime,
       claimedAt: invite.claimedAt ?? null,

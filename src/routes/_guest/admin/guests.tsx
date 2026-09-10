@@ -106,7 +106,7 @@ function UserRowView({ user, isMe }: { user: UserRow; isMe: boolean }) {
           copyLabel: 'Copy recovery link',
           title: `Make a recovery link for ${user.name}?`,
           description:
-            'The link signs one new device into their account. Using it signs every other device out, including the one they lost.',
+            'The link signs a device into their account. The first time it is used, every other device is signed out, including the one they lost.',
           confirm: 'Make link',
         }
 

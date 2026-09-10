@@ -28,8 +28,8 @@ import {
   readCookie,
 } from '@/lib/session'
 
-// Public. Rendering never consumes the invite; only the Join button does, via
-// a mutation — so link-preview bots (Signal, WhatsApp, Partiful) can't burn it.
+// Public. Rendering never joins; only the Join button does, via a mutation,
+// so link-preview bots (Signal, WhatsApp, Partiful) never sign anyone in.
 export const Route = createFileRoute('/invite/$token')({
   loader: async ({ context, params }) => {
     const invite = await context.queryClient.ensureQueryData(
@@ -119,7 +119,7 @@ function useJoin(token: string) {
       throw caught
     }
     // Committed. The pending secret stays until the cookie provably holds it,
-    // so a retry re-enters the idempotent path instead of burning the link.
+    // so a retry re-enters the idempotent path with the same secret.
     try {
       await persist({ data: { sessionToken: secret } })
     } catch {
@@ -168,7 +168,7 @@ function ClaimForm({
         <p className="text-muted-foreground">
           {invite.kind === 'new'
             ? 'Tap join to get started.'
-            : `This link signs this device in as ${invite.name}.`}
+            : `This signs this device in as ${invite.name}. Your link works on every device you open it on.`}
         </p>
       </div>
       {viewer && (
@@ -238,10 +238,12 @@ function ClaimedScreen({ token, mine }: { token: string; mine: boolean }) {
       </Screen>
     )
   }
+  // Only legacy label-only invites end up here; every link minted for an
+  // account keeps working on any device.
   return (
     <Screen
       title="This link was already used"
-      description="Invite links work once. If you joined on another phone or browser, open the site there and tap Use another device to get a link for this one. If you can't, ask for a new link."
+      description="This one can't be used again. Ask Yoav, Guy, or Libi for a new link."
     />
   )
 }
