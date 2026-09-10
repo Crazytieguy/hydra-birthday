@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 import { api, internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { MAX_SESSIONS_PER_USER } from './lib/sessions'
-import { newToken } from './lib/tokens'
+import { hashToken, newToken } from './lib/tokens'
 import schema from './schema'
 
 const modules = import.meta.glob('./**/*.ts')
@@ -286,6 +286,63 @@ describe('recovery', () => {
     expect(
       listed.find((i) => i.label === 'Faye' && i.kind === 'new'),
     ).toMatchObject({ revokedAt: expect.any(Number) })
+  })
+
+  test('a link a recovery link superseded is dead even without revokedAt', async () => {
+    // Rows shaped like history: before links were reusable, a claimed link
+    // was dead by consumption, so a recovery claim never set `revokedAt` on
+    // it. Each row's claim time is its creation time, which keeps the order
+    // (first link, then recovery, then a fresh link) strict.
+    const { t, adminToken } = await setup()
+    const original = newToken()
+    const recovery = newToken()
+    const hana = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert('users', {
+        name: 'Hana',
+        isAdmin: false,
+        joinedAt: Date.now(),
+      })
+      const insert = async (token: string, replacesSessions?: true) => {
+        const id = await ctx.db.insert('invites', {
+          tokenHash: await hashToken(token),
+          label: 'Hana',
+          forUserId: userId,
+          replacesSessions,
+        })
+        const row = (await ctx.db.get('invites', id))!
+        await ctx.db.patch('invites', id, { claimedAt: row._creationTime })
+      }
+      await insert(original)
+      await insert(recovery, true)
+      await ctx.db.insert('sessions', {
+        userId,
+        tokenHash: await hashToken(original),
+      })
+      return userId
+    })
+    // The original link: dead from every browser, including one it signed in.
+    expect(await peek(t, original)).toEqual({ status: 'invalid' })
+    await expect(claim(t, original)).rejects.toEqual(
+      failsWith('INVALID_INVITE'),
+    )
+    await expect(claim(t, original, undefined, original)).rejects.toEqual(
+      failsWith('INVALID_INVITE'),
+    )
+    expect(await me(t, original)).toMatchObject({ _id: hana, name: 'Hana' })
+    // The recovery link keeps signing devices in without signing others out.
+    expect(await peek(t, recovery)).toMatchObject({
+      status: 'available',
+      kind: 'existing',
+      name: 'Hana',
+    })
+    const tablet = await claim(t, recovery)
+    expect(await me(t, tablet)).toMatchObject({ _id: hana })
+    expect(await me(t, original)).toMatchObject({ _id: hana })
+    // A link minted after the recovery claim is untouched by it.
+    const fresh = await recoveryLink(t, adminToken, hana)
+    expect(await peek(t, fresh)).toMatchObject({ status: 'available' })
+    const desk = await claim(t, fresh)
+    expect(await me(t, desk)).toMatchObject({ _id: hana })
   })
 
   test('sign out everywhere invalidates every session but keeps the account', async () => {

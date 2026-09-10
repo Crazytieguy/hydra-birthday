@@ -1,7 +1,7 @@
 import { ConvexError, v } from 'convex/values'
 import { internalMutation, mutation, query } from './_generated/server'
 import type { MutationCtx, QueryCtx } from './_generated/server'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import {
   adminMutation,
   adminQuery,
@@ -22,6 +22,25 @@ async function findInvite(ctx: QueryCtx, token: string) {
     .unique()
 }
 
+// The link is dead once an admin revoked it, and also once a recovery link
+// minted later was claimed: that claim revokes the older links, but links
+// from before that rule were claimed, then superseded, and were only dead
+// because links used to be one-shot. The recovery link itself stays live.
+async function inviteIsRevoked(ctx: QueryCtx, invite: Doc<'invites'>) {
+  if (invite.revokedAt !== undefined) return true
+  const siblings = await ctx.db
+    .query('invites')
+    .withIndex('by_forUserId', (q) => q.eq('forUserId', invite.forUserId))
+    .take(100)
+  return siblings.some(
+    (other) =>
+      other._id !== invite._id &&
+      other.replacesSessions === true &&
+      other.claimedAt !== undefined &&
+      other.claimedAt > invite._creationTime,
+  )
+}
+
 // What an invite page shows before the guest taps "Join". Public by design:
 // the token itself is the secret. Reading never claims the invite, so link
 // previews (Signal, WhatsApp, Partiful) never join on the guest's behalf. `sessionToken` (the
@@ -34,7 +53,7 @@ export const peek = query({
       findInvite(ctx, token),
       sessionToken ? findSessionUser(ctx, sessionToken) : null,
     ])
-    if (!invite || invite.revokedAt !== undefined)
+    if (!invite || (await inviteIsRevoked(ctx, invite)))
       return { status: 'invalid' as const }
     const user = await ctx.db.get('users', invite.forUserId)
     if (!user) return { status: 'invalid' as const }
@@ -61,9 +80,10 @@ export const peek = query({
 
 // Bind the caller's browser to the invite's account. Links are never used
 // up: the first claim joins the account (and may name it), and every later
-// claim from another browser signs that browser in too. Only `revokedAt`
-// stops a link. The browser generates `sessionToken` (and keeps it until the
-// cookie is stored), so a retry after a lost response is a no-op.
+// claim from another browser signs that browser in too. Only revocation
+// (`inviteIsRevoked`) stops a link. The browser generates `sessionToken`
+// (and keeps it until the cookie is stored), so a retry after a lost
+// response is a no-op.
 export const claim = mutation({
   args: {
     token: v.string(),
@@ -78,7 +98,7 @@ export const claim = mutation({
       findInvite(ctx, token),
       hashToken(sessionToken),
     ])
-    if (!invite || invite.revokedAt !== undefined)
+    if (!invite || (await inviteIsRevoked(ctx, invite)))
       throw new ConvexError({ code: 'INVALID_INVITE' as const })
     const user = await ctx.db.get('users', invite.forUserId)
     if (!user) throw new ConvexError({ code: 'INVALID_INVITE' as const })
