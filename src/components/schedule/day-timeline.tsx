@@ -31,10 +31,9 @@ const PX_PER_HOUR = 64
 const TITLE_PAD = 7 // plus the 1px border makes the 8px
 const LANE_LEFT = 44 // the axis column, for the hour labels
 const LABEL_WIDTH = 34
-// The hour label is 13px Nunito Sans on a 13px line; its digits' tops sit
-// this far below the line box's top, so shifting the box up by it puts the
-// top of the digits on the hour line. Measured on a 2x screenshot.
-const LABEL_ASCENT_GAP = 1
+// The hour label sits on the same 16px line box as a block title that starts
+// on that hour, so the two read as one row.
+const LABEL_TOP = TITLE_PAD + 1
 const GUTTER = 6 // between side-by-side lanes
 const RIBBON_WIDTH = 24
 const WIDE_RIBBON_WIDTH = 60 // a ribbon with labelled segments beside its title
@@ -124,8 +123,8 @@ export function DayTimeline({ day }: { day: Day }) {
             style={{ top: y(h * 60) }}
           >
             <div
-              className="text-ink-dim absolute left-0 text-right text-[13px] leading-[13px] font-bold tabular-nums"
-              style={{ width: LABEL_WIDTH, top: -LABEL_ASCENT_GAP }}
+              className="text-ink-dim absolute left-0 text-right text-[13px] leading-4 font-bold tabular-nums"
+              style={{ width: LABEL_WIDTH, top: LABEL_TOP }}
             >
               {formatMinutes(h * 60)}
             </div>
