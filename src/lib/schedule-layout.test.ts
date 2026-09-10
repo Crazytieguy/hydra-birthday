@@ -206,29 +206,87 @@ describe('assignWashes', () => {
     partySessionId: string | null,
     start: number,
     end: number,
-    extra: Partial<{ kind: string; open: boolean }> = {},
-  ) => ({ _id, partySessionId, start, end, kind: 'activity', ...extra })
+    extra: Partial<{
+      kind: string
+      title: string
+      open: boolean
+      ribbon: boolean
+    }> = {},
+  ) => ({
+    _id,
+    partySessionId,
+    start,
+    end,
+    kind: 'activity',
+    title: _id,
+    ...extra,
+  })
 
-  test('overlapping and touching neighbours get different washes', () => {
-    // Circling A and B are two rounds of one activity.
+  test('blocks side by side differ; a repeat of one activity keeps its wash', () => {
     const washes = assignWashes([
       e('a', 'circling', 840, 930),
       e('b', 'hot-seat', 840, 1110),
-      e('c', 'improv', 930, 1020),
       e('d', 'circling', 930, 1020),
     ])
-    expect(washes.get('a')).not.toBe(washes.get('b'))
-    expect(washes.get('c')).not.toBe(washes.get('a'))
-    expect(washes.get('c')).not.toBe(washes.get('b'))
-    expect(washes.get('d')).toBe(washes.get('a'))
+    expect(washes.get('a')).toBe(0)
+    expect(washes.get('b')).toBe(1)
+    expect(washes.get('d')).toBe(0)
   })
 
-  test('frames and open slots get no wash', () => {
+  test('stacked blocks differ when they can', () => {
     const washes = assignWashes([
+      e('x', null, 600, 660),
+      e('y', null, 660, 720),
+    ])
+    expect(washes.get('x')).toBe(0)
+    expect(washes.get('y')).toBe(1)
+  })
+
+  test('a block beside one wash and under the other takes the one beside it', () => {
+    // Saturday: Improv 15:30 runs beside Circling B (wash 0) and under
+    // nothing; Utopia 17:00 runs beside Circling C (0) and under Improv
+    // (1). Beside wins: Utopia repeats Improv's wash rather than Circling's.
+    const washes = assignWashes([
+      e('circling-a', 'circling', 840, 930),
+      e('circling-b', 'circling', 930, 1020),
+      e('improv', null, 930, 1020),
+      e('circling-c', 'circling', 1020, 1110),
+      e('utopia', null, 1020, 1110),
+    ])
+    expect(washes.get('improv')).toBe(1)
+    expect(washes.get('utopia')).toBe(1)
+  })
+
+  test('a third block beside two others alternates', () => {
+    const washes = assignWashes([
+      e('p', null, 600, 720),
+      e('q', null, 600, 720),
+      e('r', null, 600, 720),
+    ])
+    expect([washes.get('p'), washes.get('q'), washes.get('r')]).toEqual([
+      0, 1, 0,
+    ])
+  })
+
+  test('blocks starting together are washed in title order', () => {
+    // Sunday: "12 Levers Workshop" before "REAL Jam Session", whatever
+    // their ids, so the app matches the static image.
+    const washes = assignWashes([
+      e('u11jam', null, 780, 900, { title: 'REAL Jam Session' }),
+      e('u11lev', null, 780, 900, { title: '12 Levers Workshop' }),
+    ])
+    expect(washes.get('u11lev')).toBe(0)
+    expect(washes.get('u11jam')).toBe(1)
+  })
+
+  test('ribbons, frames and open slots get no wash', () => {
+    const washes = assignWashes([
+      e('r', null, 840, 1110, { ribbon: true }),
       e('f', null, 1110, 1200, { kind: 'frame' }),
       e('q', null, 600, 780, { open: true }),
       e('x', null, 600, 630),
     ])
+    expect(washes.has('r')).toBe(false)
     expect(washes.has('f')).toBe(false)
     expect(washes.has('q')).toBe(false)
     expect(washes.get('x')).toBe(0)

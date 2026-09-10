@@ -35,6 +35,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-vote-fill: var(--vote-fill);
   --color-vote-line: var(--vote-line);
   --color-frame-fill: var(--frame-fill);
   --color-slot-fill: var(--slot-fill);
@@ -78,7 +79,8 @@
   --accent-foreground: #26231c;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #ddd6c2;
-  /* Voted activities on the schedule: the pink outline. */
+  /* Voted activities on the schedule: a pale pink card and its outline. */
+  --vote-fill: #f9e3ea;
   --vote-line: #e6a4bb;
   /* Schedule: meal/party bands, the wash behind an open "?" slot, and the
      ink for the hour axis and band labels (muted, but darker than
@@ -86,12 +88,10 @@
   --frame-fill: #e9e2cc;
   --slot-fill: rgba(249, 227, 234, 0.35);
   --ink-dim: #6b6555;
-  --wash-1: #e6ecd8;
-  --wash-2: #dfe8ee;
-  --wash-3: #ece3ef;
-  --wash-4: #f6e4d2;
-  --wash-5: #dbeee6;
-  --wash-6: #f3ecc9;
+  /* The two activity washes, sky and mint: cool, so they sit apart from the
+     warm bands and the voted pink. */
+  --wash-1: #dceff6;
+  --wash-2: #dcf1e7;
   --input: #d3cbb4;
   --ring: #d64e7e;
   --chart-1: oklch(0.87 0 0);
@@ -128,16 +128,13 @@
     --accent-foreground: #ece7d8;
     --destructive: oklch(0.704 0.191 22.216);
     --border: #3b382c;
+    --vote-fill: #3a2631;
     --vote-line: #8a4f66;
     --frame-fill: #3c3726;
     --slot-fill: rgba(58, 38, 49, 0.35);
     --ink-dim: #b3ac97;
-    --wash-1: #2f3526;
-    --wash-2: #262f36;
-    --wash-3: #322a38;
-    --wash-4: #3b2e24;
-    --wash-5: #243530;
-    --wash-6: #383420;
+    --wash-1: #2b383c;
+    --wash-2: #2c3933;
     --input: #4a4635;
     --ring: #ee7ba3;
     --chart-1: oklch(0.87 0 0);

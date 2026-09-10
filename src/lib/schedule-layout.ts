@@ -36,8 +36,9 @@ export type Layout<T extends Placed> = {
   ribbonColumns: number
 }
 
-export const overlaps = (a: Placed, b: Placed) =>
-  a.start < b.end && b.start < a.end
+type Span = { start: number; end: number }
+
+export const overlaps = (a: Span, b: Span) => a.start < b.end && b.start < a.end
 
 // Greedy first-fit columns: items sorted by start, each takes the first
 // column whose last item ended by the time this one starts.
@@ -109,31 +110,40 @@ export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
   }
 }
 
-// One soft wash per activity so the day reads as many things, not one thing.
-// Assigned in start order: a block takes the first wash no overlapping or
-// touching neighbour already has, and repeats of one activity (Circling
-// A/B/C share a partySession) keep its wash. The static schedule images run
-// the same rule, so they match.
-export const WASH_COUNT = 6
+// Two soft washes so the day reads as many things, not one thing. Assigned
+// in start order, two tiers: blocks running side by side must differ (hard),
+// and a block should differ from the one it touches end-to-start when it
+// can (soft). A block takes the first wash clear of both, else the first
+// clear of its neighbours beside it, else they alternate. Repeats of one
+// activity (Circling A/B/C share a partySession) keep its wash. Ribbons,
+// open slots and frames get none: thin verticals side by side would read as
+// stripes. The static schedule images run the same rule, so they match.
+export const WASH_COUNT = 2
 
 export type Washable = {
   _id: string
   partySessionId: string | null
+  title: string
   start: number
   end: number
   kind: string
+  ribbon?: boolean
   open?: boolean
 }
 
 export function assignWashes(entries: Array<Washable>): Map<string, number> {
   const items = entries
-    .filter((e) => e.kind === 'activity' && !e.open)
+    .filter((e) => e.kind === 'activity' && !e.open && !e.ribbon)
     .sort(
       (a, b) =>
-        a.start - b.start || a.end - b.end || a._id.localeCompare(b._id),
+        a.start - b.start ||
+        a.end - b.end ||
+        a.title.localeCompare(b.title) ||
+        a._id.localeCompare(b._id),
     )
   const byActivity = new Map<string, number>()
   const out = new Map<string, number>()
+  const washes = Array.from({ length: WASH_COUNT }, (_, i) => i)
   for (const item of items) {
     const activity = item.partySessionId ?? item._id
     const known = byActivity.get(activity)
@@ -141,17 +151,17 @@ export function assignWashes(entries: Array<Washable>): Map<string, number> {
       out.set(item._id, known)
       continue
     }
-    const taken = new Set(
-      items
-        .filter(
-          (o) => out.has(o._id) && o.start <= item.end && item.start <= o.end,
-        )
-        .map((o) => out.get(o._id)),
+    const placed = items.filter((o) => out.has(o._id))
+    const washesOf = (neighbours: Array<Washable>) =>
+      new Set(neighbours.map((o) => out.get(o._id)))
+    const hard = washesOf(placed.filter((o) => overlaps(o, item)))
+    const soft = washesOf(
+      placed.filter((o) => o.end === item.start || item.end === o.start),
     )
-    let pick = Array.from({ length: WASH_COUNT }, (_, i) => i).find(
-      (i) => !taken.has(i),
-    )
-    if (pick === undefined) pick = byActivity.size % WASH_COUNT
+    const pick =
+      washes.find((i) => !hard.has(i) && !soft.has(i)) ??
+      washes.find((i) => !hard.has(i)) ??
+      byActivity.size % WASH_COUNT
     byActivity.set(activity, pick)
     out.set(item._id, pick)
   }

@@ -175,7 +175,6 @@ export function DayTimeline({ day }: { day: Day }) {
           <ScheduleRibbon
             key={item._id}
             entry={item}
-            wash={washes.get(item._id)}
             y={y}
             onOpen={() => setOpen(item)}
             style={{
@@ -216,15 +215,16 @@ function ScheduleBand({
 
 const voted = (entry: Entry) => entry.myVote !== null
 
-// Blocks and ribbons are buttons that open the detail sheet. Hover lifts
-// them (firmer outline, soft shadow, pink title); on touch the chevron says
-// "more" and the pressed state repeats the hover outline. Quieter than the
-// voted highlight, which keeps its pink outline and title either way.
+// Blocks and ribbons are buttons that open the detail sheet, on a paper
+// card. Hover lifts them (firmer outline, soft shadow, pink title); on touch
+// the chevron says "more" and the pressed state repeats the hover outline.
+// Quieter than the voted highlight, which keeps its pink card, outline and
+// title either way.
 const blockClass = (entry: Entry) =>
   cn(
-    'font-display text-foreground hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
+    'font-display text-foreground bg-card hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
     voted(entry)
-      ? 'border-vote-line text-primary hover:border-primary/70 active:border-primary/70'
+      ? 'border-vote-line bg-vote-fill text-primary hover:border-primary/70 active:border-primary/70'
       : 'border-input hover:border-muted-foreground active:border-muted-foreground',
     // An open slot ("?") is a promise, not an activity: a big question mark
     // on a soft wash, dashed.
@@ -239,8 +239,15 @@ const Chevron = ({ className }: { className?: string }) => (
   />
 )
 
-const washStyle = (wash: number | undefined): React.CSSProperties =>
-  wash === undefined ? {} : { backgroundColor: `var(--wash-${wash + 1})` }
+// The activity's wash, under the voted pink: only blocks get one, and only
+// when they aren't voted.
+const washStyle = (
+  entry: Entry,
+  wash: number | undefined,
+): React.CSSProperties =>
+  wash === undefined || voted(entry)
+    ? {}
+    : { backgroundColor: `var(--wash-${wash + 1})` }
 
 function ScheduleBlock({
   entry,
@@ -262,7 +269,7 @@ function ScheduleBlock({
         blockClass(entry),
         'flex items-start pl-2 pr-6 text-sm leading-4',
       )}
-      style={{ ...style, ...washStyle(wash), paddingTop: TITLE_PAD }}
+      style={{ ...style, ...washStyle(entry, wash), paddingTop: TITLE_PAD }}
     >
       {entry.open ? (
         <span className="absolute inset-0 flex items-center justify-center text-[28px] leading-none">
@@ -278,13 +285,11 @@ function ScheduleBlock({
 
 function ScheduleRibbon({
   entry,
-  wash,
   y,
   onOpen,
   style,
 }: {
   entry: Entry
-  wash: number | undefined
   y: (minutes: number) => number
   onOpen: () => void
   style: React.CSSProperties
@@ -298,7 +303,7 @@ function ScheduleRibbon({
         blockClass(entry),
         'flex items-stretch text-[13px] whitespace-nowrap',
       )}
-      style={{ ...style, ...washStyle(wash) }}
+      style={style}
     >
       {wide && (
         // Sub-spans stacked to scale, split by hairlines that land on the
