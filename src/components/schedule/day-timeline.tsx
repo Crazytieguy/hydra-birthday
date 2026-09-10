@@ -38,7 +38,7 @@ const LABEL_ASCENT_GAP = 1
 const GUTTER = 6 // between side-by-side lanes
 const RIBBON_WIDTH = 24
 const WIDE_RIBBON_WIDTH = 60 // a ribbon with labelled segments beside its title
-const RIBBON_TITLE_WIDTH = 22 // the vertical title column inside a wide ribbon
+const RIBBON_TITLE_WIDTH = 22 // the vertical title column on the right of a wide ribbon
 const RIBBON_GAP = 6 // between two ribbons
 const RIBBON_MARGIN = 8 // between the lanes and the first ribbon
 const BAND_LABEL_WIDTH = 64 // kept free inside a frame so its label reads
@@ -292,19 +292,12 @@ function ScheduleRibbon({
       )}
       style={style}
     >
-      <span
-        className="relative flex shrink-0 items-center py-[6px] leading-[22px] [writing-mode:vertical-rl]"
-        style={{ width: wide ? RIBBON_TITLE_WIDTH : '100%' }}
-      >
-        {entry.title}
-        <Chevron className="bottom-[5px] left-1/2 -ml-[6px]" />
-      </span>
       {wide && (
         // Sub-spans stacked to scale, split by hairlines that land on the
         // grid: the first is one pixel short of its span because the
         // ribbon's own top border takes that row, the rest carry their
         // divider as a top border.
-        <span className="flex min-w-0 flex-1 flex-col border-l border-inherit">
+        <span className="flex min-w-0 flex-1 flex-col border-r border-inherit">
           {entry.segments.map((segment, i) => (
             <span
               key={segment.label}
@@ -323,6 +316,13 @@ function ScheduleRibbon({
           ))}
         </span>
       )}
+      <span
+        className="relative flex shrink-0 items-center py-[6px] leading-[22px] [writing-mode:vertical-rl]"
+        style={{ width: wide ? RIBBON_TITLE_WIDTH : '100%' }}
+      >
+        {entry.title}
+        <Chevron className="bottom-[5px] left-1/2 -ml-[6px]" />
+      </span>
     </button>
   )
 }
