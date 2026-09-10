@@ -1,6 +1,9 @@
-import { adminQuery } from './lib/auth'
+import { ConvexError, v } from 'convex/values'
+import { internalMutation, internalQuery } from './_generated/server'
+import { adminQuery, sessionQuery } from './lib/auth'
 import { takeAll } from './lib/collect'
 import { userJoinedAt } from './lib/joined'
+import { days } from './lib/slots'
 import { SESSIONS_CAP } from './partySessions'
 
 // Everything the organizers need to schedule by hand, as raw joined rows.
@@ -43,5 +46,144 @@ export const raw = adminQuery({
         confirmedAt: row.confirmedAt ?? null,
       })),
     }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// The guest-facing schedule. Rows come from `bun run schedule:sync`
+// (scripts/schedule-sync.ts) via replaceAll; guests read them through
+// forGuest, which joins each activity's partySession and the caller's own
+// vote and nothing about anyone else.
+
+const ENTRIES_CAP = 200
+
+const entryFields = {
+  day: v.string(),
+  start: v.number(),
+  end: v.number(),
+  kind: v.union(v.literal('activity'), v.literal('frame')),
+  partySessionId: v.optional(v.id('partySessions')),
+  title: v.optional(v.string()),
+  frameLabel: v.optional(v.string()),
+  ribbon: v.optional(v.boolean()),
+  note: v.optional(v.string()),
+}
+
+export const forGuest = sessionQuery({
+  args: {},
+  handler: async (ctx) => {
+    const [entries, myVoteRows] = await Promise.all([
+      takeAll(ctx.db.query('scheduleEntries'), ENTRIES_CAP),
+      takeAll(
+        ctx.db
+          .query('votes')
+          .withIndex('by_userId_and_partySessionId', (q) =>
+            q.eq('userId', ctx.user._id),
+          ),
+        SESSIONS_CAP,
+      ),
+    ])
+    const myVotes = new Map(
+      myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
+    )
+    const joined = await Promise.all(
+      entries.map(async (entry) => {
+        const session = entry.partySessionId
+          ? await ctx.db.get('partySessions', entry.partySessionId)
+          : null
+        const facilitators = session
+          ? await Promise.all(
+              session.facilitatorIds.map((id) => ctx.db.get('users', id)),
+            )
+          : []
+        return {
+          _id: entry._id,
+          day: entry.day,
+          kind: entry.kind,
+          start: entry.start,
+          end: entry.end,
+          // The synced title is a snapshot, so a renamed or deleted activity
+          // still reads; the live row only adds description, people, votes.
+          title:
+            entry.kind === 'frame'
+              ? (entry.frameLabel ?? '')
+              : (entry.title ?? session?.title ?? ''),
+          ribbon: entry.ribbon === true,
+          note: entry.note ?? null,
+          description: session?.description ?? null,
+          facilitatorNames: facilitators.flatMap((user) =>
+            user ? [user.name] : [],
+          ),
+          myVote: session ? (myVotes.get(session._id) ?? null) : null,
+        }
+      }),
+    )
+    // Frames first at a given start, then longer blocks before shorter ones,
+    // so lanes fill predictably.
+    joined.sort(
+      (a, b) =>
+        a.day.localeCompare(b.day) ||
+        a.start - b.start ||
+        Number(a.kind === 'activity') - Number(b.kind === 'activity') ||
+        b.end - b.start - (a.end - a.start) ||
+        a.title.localeCompare(b.title),
+    )
+    return days
+      .map((day) => ({
+        date: day.date,
+        label: day.label,
+        entries: joined.filter((entry) => entry.day === day.date),
+      }))
+      .filter((day) => day.entries.length > 0)
+  },
+})
+
+// Replace the whole schedule. Called only by the sync script; validated here
+// so a malformed board file can't leave half a schedule behind (the mutation
+// is one transaction, so a throw rolls back the deletes too).
+export const replaceAll = internalMutation({
+  args: { entries: v.array(v.object(entryFields)) },
+  handler: async (ctx, { entries }) => {
+    const knownDays = new Set(days.map((day) => day.date))
+    for (const entry of entries) {
+      const bad = (reason: string) => {
+        throw new ConvexError({
+          code: 'INVALID_ENTRY' as const,
+          reason,
+          entry,
+        })
+      }
+      if (!knownDays.has(entry.day)) bad('unknown day')
+      if (entry.start < 0 || entry.end <= entry.start) bad('bad time range')
+      if (entry.kind === 'frame') {
+        if (!entry.frameLabel) bad('frame without a label')
+        if (entry.partySessionId) bad('frame with a partySessionId')
+      } else {
+        if (!entry.partySessionId && !entry.title)
+          bad('activity with neither partySessionId nor title')
+        if (
+          entry.partySessionId &&
+          !(await ctx.db.get('partySessions', entry.partySessionId))
+        )
+          bad('partySessionId does not exist')
+      }
+    }
+    const existing = await takeAll(ctx.db.query('scheduleEntries'), ENTRIES_CAP)
+    for (const row of existing) await ctx.db.delete('scheduleEntries', row._id)
+    for (const entry of entries) await ctx.db.insert('scheduleEntries', entry)
+    return { deleted: existing.length, inserted: entries.length }
+  },
+})
+
+// What the sync script needs to map board activities onto this deployment.
+export const listForSync = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const sessions = await takeAll(ctx.db.query('partySessions'), SESSIONS_CAP)
+    return sessions.map((session) => ({
+      _id: session._id,
+      catalogKey: session.catalogKey ?? null,
+      title: session.title,
+    }))
   },
 })

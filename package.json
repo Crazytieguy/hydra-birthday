@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "invite": "bun scripts/invite.ts",
     "seed": "bun scripts/seed-sessions.ts",
-    "wizard": "bun scripts/wizard.ts"
+    "wizard": "bun scripts/wizard.ts",
+    "schedule:sync": "bun scripts/schedule-sync.ts"
   },
   "dependencies": {
     "@convex-dev/react-query": "^0.1.0",

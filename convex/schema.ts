@@ -82,4 +82,39 @@ export default defineSchema({
     blockedHours: v.array(v.string()),
     confirmedAt: v.optional(v.number()),
   }).index('by_userId', ['userId']),
+
+  // The guest-facing schedule, replaced wholesale by `bun run schedule:sync`
+  // from the organizers' board. Times are minutes from local midnight; `end`
+  // may pass 1440 for a block that runs past midnight. Activities usually
+  // point at a partySession (title, description, facilitators, votes come
+  // from there); a title-only activity (no partySessionId) is allowed for
+  // things nobody voted on, like morning yoga. Frames are the meals, the
+  // opening, the party: full-width bands with just a label.
+  scheduleEntries: defineTable({
+    day: v.string(),
+    start: v.number(),
+    end: v.number(),
+    kind: v.union(v.literal('activity'), v.literal('frame')),
+    partySessionId: v.optional(v.id('partySessions')),
+    title: v.optional(v.string()),
+    frameLabel: v.optional(v.string()),
+    // A long come-and-go activity, drawn as a narrow ribbon beside the lanes.
+    ribbon: v.optional(v.boolean()),
+    note: v.optional(v.string()),
+  }).index('by_day', ['day']),
+
+  // "I can bring X for meal Y, it feeds N." Everyone sees everyone's offers
+  // (deliberately, so people don't all bring hummus); only the owner edits.
+  foodOffers: defineTable({
+    userId: v.id('users'),
+    meal: v.union(
+      v.literal('sat-dinner'),
+      v.literal('sun-brunch'),
+      v.literal('sun-dinner'),
+    ),
+    dish: v.string(),
+    feeds: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_meal', ['meal']),
 })
