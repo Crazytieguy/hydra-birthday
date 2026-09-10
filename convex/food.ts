@@ -30,9 +30,8 @@ function validateOffer(args: { dish: string; feeds: number }) {
   return { dish, feeds: args.feeds }
 }
 
-async function allOffers(ctx: QueryCtx) {
-  return await takeAll(ctx.db.query('foodOffers'), OFFERS_CAP)
-}
+const allOffers = (ctx: QueryCtx) =>
+  takeAll(ctx.db.query('foodOffers'), OFFERS_CAP)
 
 // Grouped by meal, names joined, the caller's own rows flagged so the page
 // can show edit controls. Everyone sees everyone's offers on purpose.

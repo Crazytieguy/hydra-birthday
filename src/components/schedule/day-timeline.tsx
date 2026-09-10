@@ -36,8 +36,10 @@ export function DayTimeline({ day }: { day: Day }) {
   // fixed pixel width, so the subtraction happens in CSS calc().
   const layout = layoutDay(activities)
 
-  const hours: Array<number> = []
-  for (let h = dayStart; h <= dayEnd; h++) hours.push(h)
+  const hours = Array.from(
+    { length: dayEnd - dayStart + 1 },
+    (_, i) => dayStart + i,
+  )
 
   return (
     <>

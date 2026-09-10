@@ -7,7 +7,6 @@ export const MEALS = [
 ] as const
 
 export type MealKey = (typeof MEALS)[number]['key']
-export const mealKeys = MEALS.map((meal) => meal.key)
 
 export const DISH_MAX_LENGTH = 80
 export const FEEDS_MAX = 200

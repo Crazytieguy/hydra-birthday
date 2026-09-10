@@ -86,38 +86,59 @@ export const forGuest = sessionQuery({
     const myVotes = new Map(
       myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
     )
-    const joined = await Promise.all(
-      entries.map(async (entry) => {
-        const session = entry.partySessionId
-          ? await ctx.db.get('partySessions', entry.partySessionId)
-          : null
-        const facilitators = session
-          ? await Promise.all(
-              session.facilitatorIds.map((id) => ctx.db.get('users', id)),
-            )
-          : []
-        return {
-          _id: entry._id,
-          day: entry.day,
-          kind: entry.kind,
-          start: entry.start,
-          end: entry.end,
-          // The synced title is a snapshot, so a renamed or deleted activity
-          // still reads; the live row only adds description, people, votes.
-          title:
-            entry.kind === 'frame'
-              ? (entry.frameLabel ?? '')
-              : (entry.title ?? session?.title ?? ''),
-          ribbon: entry.ribbon === true,
-          note: entry.note ?? null,
-          description: session?.description ?? null,
-          facilitatorNames: facilitators.flatMap((user) =>
-            user ? [user.name] : [],
-          ),
-          myVote: session ? (myVotes.get(session._id) ?? null) : null,
-        }
-      }),
+    // Circling A/B/C share one partySession; look each up once.
+    const sessionIds = [
+      ...new Set(
+        entries.flatMap((e) => (e.partySessionId ? [e.partySessionId] : [])),
+      ),
+    ]
+    const sessions = new Map(
+      await Promise.all(
+        sessionIds.map(async (id) => {
+          const session = await ctx.db.get('partySessions', id)
+          const facilitators = session
+            ? await Promise.all(
+                session.facilitatorIds.map((userId) =>
+                  ctx.db.get('users', userId),
+                ),
+              )
+            : []
+          return [
+            id,
+            {
+              session,
+              facilitatorNames: facilitators.flatMap((user) =>
+                user ? [user.name] : [],
+              ),
+            },
+          ] as const
+        }),
+      ),
     )
+    const joined = entries.map((entry) => {
+      const live = entry.partySessionId
+        ? sessions.get(entry.partySessionId)
+        : undefined
+      const session = live?.session ?? null
+      return {
+        _id: entry._id,
+        day: entry.day,
+        kind: entry.kind,
+        start: entry.start,
+        end: entry.end,
+        // The synced title is a snapshot, so a renamed or deleted activity
+        // still reads; the live row only adds description, people, votes.
+        title:
+          entry.kind === 'frame'
+            ? (entry.frameLabel ?? '')
+            : (entry.title ?? session?.title ?? ''),
+        ribbon: entry.ribbon === true,
+        note: entry.note ?? null,
+        description: session?.description ?? null,
+        facilitatorNames: live?.facilitatorNames ?? [],
+        myVote: session ? (myVotes.get(session._id) ?? null) : null,
+      }
+    })
     // Frames first at a given start, then longer blocks before shorter ones,
     // so lanes fill predictably.
     joined.sort(

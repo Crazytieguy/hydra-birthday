@@ -134,10 +134,11 @@ function OfferForm({
 
   async function submit() {
     const args = { meal, dish, feeds: Number(feeds) }
-    const ok = editing
+    // run() resolves undefined on failure (the error is shown below).
+    const result = editing
       ? await update.run({ offerId: editing._id, ...args })
       : await offer.run(args)
-    if (ok === null || ok) {
+    if (result !== undefined) {
       setDish('')
       setFeeds('')
       onDone()

@@ -14,7 +14,7 @@
 // data/schedule-overrides.ts. Replaces the whole schedule in one transaction.
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { hoursToMinutes } from '../convex/lib/schedule'
+import { formatMinutes, hoursToMinutes } from '../convex/lib/schedule'
 import {
   dayDates,
   extras,
@@ -183,14 +183,14 @@ for (const extra of extras) {
 entries.sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start)
 
 for (const warning of warnings) console.error(`warning: ${warning}`)
-const fmt = (m: number) =>
-  `${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 for (const entry of entries) {
   const label =
     entry.kind === 'frame'
       ? `[${entry.frameLabel}]`
       : `${entry.title}${entry.partySessionId ? '' : ' (title only)'}${entry.ribbon ? ' (ribbon)' : ''}`
-  console.error(`${entry.day} ${fmt(entry.start)}-${fmt(entry.end)}  ${label}`)
+  console.error(
+    `${entry.day} ${formatMinutes(entry.start)}-${formatMinutes(entry.end)}  ${label}`,
+  )
 }
 if (flags.strict && warnings.length > 0) {
   console.error(`${warnings.length} warning(s) with --strict; nothing written`)
