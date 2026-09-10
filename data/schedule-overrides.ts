@@ -3,11 +3,12 @@
 // partySession ids, rooms and internal notes; guests see titles, times and a
 // few deliberate labels. Everything guest-facing that isn't on the board
 // lives here, keyed by board placement id or activity title.
+import { days } from '../convex/lib/slots'
 
-export const dayDates: Partial<Record<string, string>> = {
-  sat: '2026-09-12',
-  sun: '2026-09-13',
-}
+// Board day keys ('sat', 'sun') are the grid's day labels, shortened.
+export const dayDates: Partial<Record<string, string>> = Object.fromEntries(
+  days.map((day) => [day.label.slice(0, 3).toLowerCase(), day.date]),
+)
 
 // Board "frame:*" placements → band labels.
 export const frameLabels: Partial<Record<string, string>> = {
@@ -63,30 +64,31 @@ export const placementOverrides: Partial<Record<string, PlacementOverride>> = {
   '7ca8na': { ribbon: true, note: 'Come and go whenever you like.' },
 }
 
+// A title-only activity that isn't on the board at all (hours from
+// midnight, like the board).
 export type Extra = {
   day: string
   start: number
   len: number
-} & (
-  | { kind: 'frame'; frameLabel: string }
-  | { kind: 'activity'; title: string; note?: string }
-)
+  title: string
+  note?: string
+  open?: boolean
+}
 
-// Things that aren't on the board at all.
-export const extras: Array<Extra> = [
-  // Open slots: the last votes decide what goes there.
-  ...[
-    ['sat', 20, 4],
-    ['sun', 10, 3],
-    ['sun', 13, 2],
-    ['sun', 15, 3],
-    ['sun', 20, 2],
-  ].map(([day, start, len]): Extra => ({
-    day: day as string,
-    start: start as number,
-    len: len as number,
-    kind: 'activity',
-    title: '?',
-    note: 'Nothing is placed here yet. The last votes decide what goes in.',
-  })),
+// Open slots: the last votes decide what goes there.
+const openSlots: Array<[day: string, start: number, len: number]> = [
+  ['sat', 20, 4],
+  ['sun', 10, 3],
+  ['sun', 13, 2],
+  ['sun', 15, 3],
+  ['sun', 20, 2],
 ]
+
+export const extras: Array<Extra> = openSlots.map(([day, start, len]) => ({
+  day,
+  start,
+  len,
+  title: '?',
+  open: true,
+  note: 'Nothing is placed here yet. The last votes decide what goes in.',
+}))

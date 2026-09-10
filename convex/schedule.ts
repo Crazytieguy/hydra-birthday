@@ -4,7 +4,9 @@ import { adminQuery, sessionQuery } from './lib/auth'
 import { takeAll } from './lib/collect'
 import { userJoinedAt } from './lib/joined'
 import { days } from './lib/slots'
-import { SESSIONS_CAP } from './partySessions'
+import { facilitatorNames, usersById } from './lib/users'
+import { SESSIONS_CAP, myVotesByPartySession } from './partySessions'
+import { scheduleEntryFields } from './schema'
 
 // Everything the organizers need to schedule by hand, as raw joined rows.
 // Deliberately stateless and view-free: the client renders whatever cuts of
@@ -55,104 +57,53 @@ export const raw = adminQuery({
 
 const ENTRIES_CAP = 200
 
-const entryFields = {
-  day: v.string(),
-  start: v.number(),
-  end: v.number(),
-  kind: v.union(v.literal('activity'), v.literal('frame')),
-  partySessionId: v.optional(v.id('partySessions')),
-  title: v.optional(v.string()),
-  frameLabel: v.optional(v.string()),
-  ribbon: v.optional(v.boolean()),
-  note: v.optional(v.string()),
-  segments: v.optional(
-    v.array(
-      v.object({ label: v.string(), start: v.number(), end: v.number() }),
-    ),
-  ),
-}
-
 export const forGuest = sessionQuery({
   args: {},
   handler: async (ctx) => {
-    const [entries, myVoteRows] = await Promise.all([
+    const [entries, myVotes] = await Promise.all([
       takeAll(ctx.db.query('scheduleEntries'), ENTRIES_CAP),
-      takeAll(
-        ctx.db
-          .query('votes')
-          .withIndex('by_userId_and_partySessionId', (q) =>
-            q.eq('userId', ctx.user._id),
-          ),
-        SESSIONS_CAP,
-      ),
+      myVotesByPartySession(ctx, ctx.user._id),
     ])
-    const myVotes = new Map(
-      myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
-    )
-    // Circling A/B/C share one partySession; look each up once.
+    // Circling A/B/C share one partySession; look each up once, and each
+    // facilitator once across all of them.
     const sessionIds = [
       ...new Set(
         entries.flatMap((e) => (e.partySessionId ? [e.partySessionId] : [])),
       ),
     ]
-    const sessions = new Map(
-      await Promise.all(
-        sessionIds.map(async (id) => {
-          const session = await ctx.db.get('partySessions', id)
-          const facilitators = session
-            ? await Promise.all(
-                session.facilitatorIds.map((userId) =>
-                  ctx.db.get('users', userId),
-                ),
-              )
-            : []
-          return [
-            id,
-            {
-              session,
-              facilitatorNames: facilitators.flatMap((user) =>
-                user ? [user.name] : [],
-              ),
-            },
-          ] as const
-        }),
-      ),
+    const sessionRows = await Promise.all(
+      sessionIds.map((id) => ctx.db.get('partySessions', id)),
+    )
+    const sessions = new Map(sessionIds.map((id, i) => [id, sessionRows[i]]))
+    const users = await usersById(
+      ctx,
+      sessionRows.flatMap((session) => session?.facilitatorIds ?? []),
     )
     const joined = entries.map((entry) => {
-      const live = entry.partySessionId
-        ? sessions.get(entry.partySessionId)
-        : undefined
-      const session = live?.session ?? null
+      // The synced title is a snapshot, so a renamed or deleted activity
+      // still reads; the live row only adds description, people, votes.
+      const session = entry.partySessionId
+        ? (sessions.get(entry.partySessionId) ?? null)
+        : null
       return {
         _id: entry._id,
         day: entry.day,
         kind: entry.kind,
         start: entry.start,
         end: entry.end,
-        // The synced title is a snapshot, so a renamed or deleted activity
-        // still reads; the live row only adds description, people, votes.
-        title:
-          entry.kind === 'frame'
-            ? (entry.frameLabel ?? '')
-            : (entry.title ?? session?.title ?? ''),
+        title: entry.title,
+        open: entry.open === true,
         ribbon: entry.ribbon === true,
         segments: entry.segments ?? [],
         note: entry.note ?? null,
+        partySessionId: entry.partySessionId ?? null,
         description: session?.description ?? null,
-        facilitatorNames: live?.facilitatorNames ?? [],
+        facilitatorNames: session ? facilitatorNames(session, users) : [],
         myVote: session ? (myVotes.get(session._id) ?? null) : null,
       }
     })
-    // Frames first at a given start, then longer blocks before shorter ones,
-    // so lanes fill predictably.
-    joined.sort(
-      (a, b) =>
-        a.day.localeCompare(b.day) ||
-        a.start - b.start ||
-        Number(a.kind === 'activity') - Number(b.kind === 'activity') ||
-        b.end - b.start - (a.end - a.start) ||
-        a.title.localeCompare(b.title),
-    )
+    // Start order only; the client's layout owns everything finer.
+    joined.sort((a, b) => a.start - b.start)
     return days
       .map((day) => ({
         date: day.date,
@@ -167,9 +118,21 @@ export const forGuest = sessionQuery({
 // so a malformed board file can't leave half a schedule behind (the mutation
 // is one transaction, so a throw rolls back the deletes too).
 export const replaceAll = internalMutation({
-  args: { entries: v.array(v.object(entryFields)) },
+  args: { entries: v.array(v.object(scheduleEntryFields)) },
   handler: async (ctx, { entries }) => {
     const knownDays = new Set(days.map((day) => day.date))
+    const sessionIds = [
+      ...new Set(
+        entries.flatMap((e) => (e.partySessionId ? [e.partySessionId] : [])),
+      ),
+    ]
+    const [existing, sessionRows] = await Promise.all([
+      takeAll(ctx.db.query('scheduleEntries'), ENTRIES_CAP),
+      Promise.all(sessionIds.map((id) => ctx.db.get('partySessions', id))),
+    ])
+    const knownSessions = new Set(
+      sessionIds.filter((_, i) => sessionRows[i] !== null),
+    )
     for (const entry of entries) {
       const bad = (reason: string) => {
         throw new ConvexError({
@@ -180,22 +143,16 @@ export const replaceAll = internalMutation({
       }
       if (!knownDays.has(entry.day)) bad('unknown day')
       if (entry.start < 0 || entry.end <= entry.start) bad('bad time range')
-      if (entry.kind === 'frame') {
-        if (!entry.frameLabel) bad('frame without a label')
-        if (entry.partySessionId) bad('frame with a partySessionId')
-      } else {
-        if (!entry.partySessionId && !entry.title)
-          bad('activity with neither partySessionId nor title')
-        if (
-          entry.partySessionId &&
-          !(await ctx.db.get('partySessions', entry.partySessionId))
-        )
-          bad('partySessionId does not exist')
-      }
+      if (!entry.title) bad('empty title')
+      if (entry.partySessionId && !knownSessions.has(entry.partySessionId))
+        bad('partySessionId does not exist')
     }
-    const existing = await takeAll(ctx.db.query('scheduleEntries'), ENTRIES_CAP)
-    for (const row of existing) await ctx.db.delete('scheduleEntries', row._id)
-    for (const entry of entries) await ctx.db.insert('scheduleEntries', entry)
+    await Promise.all(
+      existing.map((row) => ctx.db.delete('scheduleEntries', row._id)),
+    )
+    await Promise.all(
+      entries.map((entry) => ctx.db.insert('scheduleEntries', entry)),
+    )
     return { deleted: existing.length, inserted: entries.length }
   },
 })

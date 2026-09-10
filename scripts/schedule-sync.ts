@@ -14,6 +14,9 @@
 // data/schedule-overrides.ts. Replaces the whole schedule in one transaction.
 import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
+import type { FunctionReturnType, WithoutSystemFields } from 'convex/server'
+import type { internal } from '../convex/_generated/api'
+import type { Doc } from '../convex/_generated/dataModel'
 import { formatMinutes, hoursToMinutes } from '../convex/lib/schedule'
 import {
   dayDates,
@@ -66,23 +69,15 @@ type Placement = {
   start: number
   len: number
 }
-type Entry = {
-  day: string
-  start: number
-  end: number
-  kind: 'activity' | 'frame'
-  partySessionId?: string
-  title?: string
-  frameLabel?: string
-  ribbon?: boolean
-  note?: string
-  segments?: Array<{ label: string; start: number; end: number }>
-}
+type Entry = WithoutSystemFields<Doc<'scheduleEntries'>>
 
 const board = JSON.parse(readFileSync(positionals[0], 'utf8')) as {
   placements: Array<Placement>
 }
 type SourceRow = { _id: string; catalogKey?: string | null; title: string }
+type TargetRow = FunctionReturnType<
+  typeof internal.schedule.listForSync
+>[number]
 const manifest = JSON.parse(
   readFileSync(flags.manifest, 'utf8'),
 ) as Array<SourceRow>
@@ -97,8 +92,11 @@ const target = convexRunJson(
   'schedule:listForSync',
   undefined,
   flags.prod,
-) as Array<{ _id: string; catalogKey: string | null; title: string }>
-const targetById = new Map(target.map((row) => [row._id, row]))
+) as FunctionReturnType<typeof internal.schedule.listForSync>
+// Keyed by plain string: board ids are prod ids, which may not exist here.
+const targetById = new Map<string, TargetRow>(
+  target.map((row) => [row._id, row]),
+)
 const only = <T>(rows: Array<T>) => (rows.length === 1 ? rows[0] : undefined)
 
 // Board id → target row: same deployment, else the catalog key, else a title
@@ -141,7 +139,7 @@ for (const placement of board.placements) {
       warnings.push(`skipped ${placement.act}: no label in schedule-overrides`)
       continue
     }
-    entries.push({ ...time, kind: 'frame', frameLabel })
+    entries.push({ ...time, kind: 'frame', title: frameLabel })
     continue
   }
   const resolved = resolve(placement.act)
@@ -179,11 +177,13 @@ for (const extra of extras) {
     start: hoursToMinutes(extra.start),
     end: hoursToMinutes(extra.start + extra.len),
   }
-  entries.push(
-    extra.kind === 'frame'
-      ? { ...time, kind: 'frame', frameLabel: extra.frameLabel }
-      : { ...time, kind: 'activity', title: extra.title, note: extra.note },
-  )
+  entries.push({
+    ...time,
+    kind: 'activity',
+    title: extra.title,
+    open: extra.open,
+    note: extra.note,
+  })
 }
 
 entries.sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start)
@@ -192,7 +192,7 @@ for (const warning of warnings) console.error(`warning: ${warning}`)
 for (const entry of entries) {
   const label =
     entry.kind === 'frame'
-      ? `[${entry.frameLabel}]`
+      ? `[${entry.title}]`
       : `${entry.title}${entry.partySessionId ? '' : ' (title only)'}${entry.ribbon ? ' (ribbon)' : ''}`
   console.error(
     `${entry.day} ${formatMinutes(entry.start)}-${formatMinutes(entry.end)}  ${label}`,

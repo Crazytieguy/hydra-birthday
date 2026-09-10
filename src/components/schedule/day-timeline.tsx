@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronRightIcon } from 'lucide-react'
 import type { api } from '../../../convex/_generated/api'
 import { formatMinutes } from '../../../convex/lib/schedule'
-import { assignWashes, layoutDay } from '@/lib/schedule-layout'
+import { assignWashes, layoutDay, overlaps } from '@/lib/schedule-layout'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
@@ -42,9 +42,28 @@ const RIBBON_GAP = 6 // between two ribbons
 const RIBBON_MARGIN = 8 // between the lanes and the first ribbon
 const BAND_LABEL_WIDTH = 64 // kept free inside a frame so its label reads
 
-const isOpenSlot = (entry: Entry) => entry.title === '?'
 const ribbonWidth = (entry: Entry) =>
   entry.segments.length > 0 ? WIDE_RIBBON_WIDTH : RIBBON_WIDTH
+
+// The pure part of a day's geometry: washes, lanes, and ribbon column
+// widths (each column is as wide as its widest ribbon).
+function planDay(day: Day) {
+  const washes = assignWashes(day.entries)
+  const layout = layoutDay(
+    day.entries
+      .filter((e) => e.kind === 'activity')
+      .map((e) => ({ ...e, wide: e.segments.length > 0 })),
+  )
+  const columnWidths = Array.from({ length: layout.ribbonColumns }, (_, c) =>
+    Math.max(
+      RIBBON_WIDTH,
+      ...layout.ribbons
+        .filter((r) => r.column === c)
+        .map((r) => ribbonWidth(r.item)),
+    ),
+  )
+  return { washes, layout, columnWidths }
+}
 
 export function DayTimeline({ day }: { day: Day }) {
   const [open, setOpen] = useState<Entry | null>(null)
@@ -55,27 +74,7 @@ export function DayTimeline({ day }: { day: Day }) {
   const height = y(dayEnd * 60) + 1
 
   const frames = day.entries.filter((e) => e.kind === 'frame')
-  const washes = assignWashes(
-    day.entries.map((e) => ({ ...e, open: isOpenSlot(e) })),
-  )
-  const layout = layoutDay(
-    day.entries
-      .filter((e) => e.kind === 'activity')
-      .map((e) => ({
-        ...e,
-        open: isOpenSlot(e),
-        wide: e.segments.length > 0,
-      })),
-  )
-  // Each ribbon column is as wide as its widest ribbon.
-  const columnWidths = Array.from({ length: layout.ribbonColumns }, (_, c) =>
-    Math.max(
-      RIBBON_WIDTH,
-      ...layout.ribbons
-        .filter((r) => r.column === c)
-        .map((r) => ribbonWidth(r.item)),
-    ),
-  )
+  const { washes, layout, columnWidths } = useMemo(() => planDay(day), [day])
   const sumWidths = (from: number, to: number) =>
     columnWidths.slice(from, to).reduce((sum, w) => sum + w, 0)
   const ribbonsWidth = (columns: number) =>
@@ -91,9 +90,7 @@ export function DayTimeline({ day }: { day: Day }) {
     ribbonColumns: number
   }) =>
     ribbonsWidth(ribbonColumns) +
-    (frames.some((f) => f.start < item.end && item.start < f.end)
-      ? BAND_LABEL_WIDTH
-      : 0)
+    (frames.some((frame) => overlaps(frame, item)) ? BAND_LABEL_WIDTH : 0)
 
   const hours = Array.from(
     { length: dayEnd - dayStart + 1 },
@@ -154,9 +151,7 @@ export function DayTimeline({ day }: { day: Day }) {
             LANE_LEFT +
             Math.max(
               ...layout.blocks
-                .filter(
-                  (b) => b.item.start < item.end && item.start < b.item.end,
-                )
+                .filter((b) => overlaps(b.item, item))
                 .map((b) => reserved(b)),
             ) +
             GUTTER * (lanes - 1)
@@ -222,20 +217,18 @@ function ScheduleBand({
 const voted = (entry: Entry) => entry.myVote !== null
 
 // Blocks and ribbons are buttons that open the detail sheet. Hover lifts
-// them (tint, firmer outline, soft shadow, pink title); on touch the chevron
-// says "more" and the pressed state repeats the hover tint. Quieter than the
-// voted highlight, which keeps its pink fill either way.
+// them (firmer outline, soft shadow, pink title); on touch the chevron says
+// "more" and the pressed state repeats the hover outline. Quieter than the
+// voted highlight, which keeps its pink outline and title either way.
 const blockClass = (entry: Entry) =>
   cn(
     'font-display text-foreground hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
-    'bg-card',
     voted(entry)
       ? 'border-vote-line text-primary hover:border-primary/70 active:border-primary/70'
       : 'border-input hover:border-muted-foreground active:border-muted-foreground',
     // An open slot ("?") is a promise, not an activity: a big question mark
     // on a soft wash, dashed.
-    isOpenSlot(entry) &&
-      'text-muted-foreground bg-slot-fill hover:bg-slot-fill active:bg-slot-fill border-dashed',
+    entry.open && 'text-muted-foreground bg-slot-fill border-dashed',
   )
 
 // The "tap for more" mark in a block's corner.
@@ -264,14 +257,14 @@ function ScheduleBlock({
     <button
       type="button"
       onClick={onOpen}
-      aria-label={isOpenSlot(entry) ? 'Open slot' : undefined}
+      aria-label={entry.open ? 'Open slot' : undefined}
       className={cn(
         blockClass(entry),
         'flex items-start pl-2 pr-6 text-sm leading-4',
       )}
       style={{ ...style, ...washStyle(wash), paddingTop: TITLE_PAD }}
     >
-      {isOpenSlot(entry) ? (
+      {entry.open ? (
         <span className="absolute inset-0 flex items-center justify-center text-[28px] leading-none">
           ?
         </span>

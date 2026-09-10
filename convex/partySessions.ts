@@ -7,11 +7,33 @@ import {
 } from './lib/auth'
 import { takeAll } from './lib/collect'
 import { validateText } from './lib/names'
+import { facilitatorNames, usersById } from './lib/users'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
 export const SESSIONS_CAP = 500
 const VOTES_CAP = 20000
+
+// The caller's own votes, keyed by session.
+export async function myVotesByPartySession(
+  ctx: QueryCtx,
+  userId: Id<'users'>,
+) {
+  const rows = await takeAll(
+    ctx.db
+      .query('votes')
+      .withIndex('by_userId_and_partySessionId', (q) => q.eq('userId', userId)),
+    SESSIONS_CAP,
+  )
+  return new Map(rows.map((vote) => [vote.partySessionId, vote.strength]))
+}
+
+// Every facilitator across `sessions`, fetched once each.
+const facilitatorsOf = (ctx: QueryCtx, sessions: Array<Doc<'partySessions'>>) =>
+  usersById(
+    ctx,
+    sessions.flatMap((session) => session.facilitatorIds),
+  )
 
 // FNV-1a, for per-user randomized-but-stable session ordering.
 function fnv1a(input: string): number {
@@ -46,48 +68,20 @@ const facilitatedBy = (all: Array<Doc<'partySessions'>>, userId: Id<'users'>) =>
 const isOwnProposal = (session: Doc<'partySessions'>) =>
   session.proposal === true && session.facilitatorIds.length === 1
 
-async function facilitatorNames(ctx: QueryCtx, session: Doc<'partySessions'>) {
-  const users = await Promise.all(
-    session.facilitatorIds.map((id) => ctx.db.get('users', id)),
-  )
-  return users.flatMap((user) => (user ? [user.name] : []))
-}
-
 // The guest's voting screen: every visible session with their own vote, in an
 // order that's randomized per person (to spread position bias) but stable for
 // them across reloads. Nothing about anyone else's votes leaves the server.
 export const list = sessionQuery({
   args: {},
   handler: async (ctx) => {
-    const [all, myVoteRows] = await Promise.all([
+    const [all, myVotes] = await Promise.all([
       takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
-      takeAll(
-        ctx.db
-          .query('votes')
-          .withIndex('by_userId_and_partySessionId', (q) =>
-            q.eq('userId', ctx.user._id),
-          ),
-        SESSIONS_CAP,
-      ),
+      myVotesByPartySession(ctx, ctx.user._id),
     ])
-    const myVotes = new Map(
-      myVoteRows.map((vote) => [vote.partySessionId, vote.strength]),
-    )
     const facilitated = facilitatedBy(all, ctx.user._id)
-    const [sessions, facilitatedVotes] = await Promise.all([
-      Promise.all(
-        all
-          .filter((session) => session.hidden !== true)
-          .map(async (session) => ({
-            _id: session._id,
-            addedAt: session.visibleSince ?? session._creationTime,
-            title: session.title,
-            description: session.description ?? null,
-            facilitatorNames: await facilitatorNames(ctx, session),
-            needsFacilitator: session.needsFacilitator === true,
-            myVote: myVotes.get(session._id) ?? null,
-          })),
-      ),
+    const visible = all.filter((session) => session.hidden !== true)
+    const [users, facilitatedVotes] = await Promise.all([
+      facilitatorsOf(ctx, visible),
       facilitated
         ? ctx.db
             .query('votes')
@@ -97,6 +91,15 @@ export const list = sessionQuery({
             .take(2)
         : Promise.resolve([]),
     ])
+    const sessions = visible.map((session) => ({
+      _id: session._id,
+      addedAt: session.visibleSince ?? session._creationTime,
+      title: session.title,
+      description: session.description ?? null,
+      facilitatorNames: facilitatorNames(session, users),
+      needsFacilitator: session.needsFacilitator === true,
+      myVote: myVotes.get(session._id) ?? null,
+    }))
     const order = (id: Id<'partySessions'>) => fnv1a(`${ctx.user._id}:${id}`)
     sessions.sort(
       (a, b) => order(a._id) - order(b._id) || a._id.localeCompare(b._id),
@@ -261,6 +264,7 @@ export const adminList = adminQuery({
       takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
       takeAll(ctx.db.query('votes'), VOTES_CAP),
     ])
+    const users = await facilitatorsOf(ctx, all)
     const counts = new Map<
       Id<'partySessions'>,
       { regular: number; strong: number }
@@ -270,20 +274,18 @@ export const adminList = adminQuery({
       count[vote.strength]++
       counts.set(vote.partySessionId, count)
     }
-    return await Promise.all(
-      all.map(async (session) => ({
-        _id: session._id,
-        catalogKey: session.catalogKey ?? null,
-        title: session.title,
-        description: session.description ?? null,
-        facilitatorIds: session.facilitatorIds,
-        facilitatorNames: await facilitatorNames(ctx, session),
-        needsFacilitator: session.needsFacilitator === true,
-        hidden: session.hidden === true,
-        regularVotes: counts.get(session._id)?.regular ?? 0,
-        strongVotes: counts.get(session._id)?.strong ?? 0,
-      })),
-    )
+    return all.map((session) => ({
+      _id: session._id,
+      catalogKey: session.catalogKey ?? null,
+      title: session.title,
+      description: session.description ?? null,
+      facilitatorIds: session.facilitatorIds,
+      facilitatorNames: facilitatorNames(session, users),
+      needsFacilitator: session.needsFacilitator === true,
+      hidden: session.hidden === true,
+      regularVotes: counts.get(session._id)?.regular ?? 0,
+      strongVotes: counts.get(session._id)?.strong ?? 0,
+    }))
   },
 })
 

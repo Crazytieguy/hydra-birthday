@@ -1,6 +1,31 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
+// One row of the guest-facing schedule; shared with schedule:replaceAll so
+// the sync script and the table can't drift.
+export const scheduleEntryFields = {
+  day: v.string(),
+  start: v.number(),
+  end: v.number(),
+  kind: v.union(v.literal('activity'), v.literal('frame')),
+  partySessionId: v.optional(v.id('partySessions')),
+  // A snapshot of the guest-facing name (the band label for a frame), so a
+  // renamed or deleted activity still reads.
+  title: v.string(),
+  // Nothing placed yet: drawn as a dashed "?" and never washed.
+  open: v.optional(v.boolean()),
+  // A long come-and-go activity, drawn as a narrow ribbon beside the lanes.
+  ribbon: v.optional(v.boolean()),
+  note: v.optional(v.string()),
+  // Labelled sub-spans drawn inside a ribbon (Person Do Thing: the class,
+  // then the play). Minutes from midnight, like start/end.
+  segments: v.optional(
+    v.array(
+      v.object({ label: v.string(), start: v.number(), end: v.number() }),
+    ),
+  ),
+}
+
 export default defineSchema({
   // Anonymous guest accounts. Nobody signs up: an account exists because an
   // invite link was minted for them. `joinedAt` is set once, at the first
@@ -92,26 +117,8 @@ export default defineSchema({
   // point at a partySession (title, description, facilitators, votes come
   // from there); a title-only activity (no partySessionId) is allowed for
   // things nobody voted on, like morning yoga. Frames are the meals, the
-  // opening, the party: full-width bands with just a label.
-  scheduleEntries: defineTable({
-    day: v.string(),
-    start: v.number(),
-    end: v.number(),
-    kind: v.union(v.literal('activity'), v.literal('frame')),
-    partySessionId: v.optional(v.id('partySessions')),
-    title: v.optional(v.string()),
-    frameLabel: v.optional(v.string()),
-    // A long come-and-go activity, drawn as a narrow ribbon beside the lanes.
-    ribbon: v.optional(v.boolean()),
-    note: v.optional(v.string()),
-    // Labelled sub-spans drawn inside a ribbon (Person Do Thing: the class,
-    // then the play). Minutes from midnight, like start/end.
-    segments: v.optional(
-      v.array(
-        v.object({ label: v.string(), start: v.number(), end: v.number() }),
-      ),
-    ),
-  }).index('by_day', ['day']),
+  // opening, the party: full-width bands with just a title.
+  scheduleEntries: defineTable(scheduleEntryFields),
 
   // "I can bring X for meal Y." Everyone sees everyone's offers
   // (deliberately, so people don't all bring hummus); only the owner edits.

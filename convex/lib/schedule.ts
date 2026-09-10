@@ -14,6 +14,3 @@ export function formatMinutes(minutes: number): string {
   const m = total % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
-
-export const formatRange = (start: number, end: number) =>
-  `${formatMinutes(start)} to ${formatMinutes(end)}`

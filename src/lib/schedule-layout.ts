@@ -27,7 +27,8 @@ export type Layout<T extends Placed> = {
   ribbonColumns: number
 }
 
-const overlaps = (a: Placed, b: Placed) => a.start < b.end && b.start < a.end
+export const overlaps = (a: Placed, b: Placed) =>
+  a.start < b.end && b.start < a.end
 
 // Greedy first-fit lanes: items sorted by start, each takes the first lane
 // whose last item ended by the time this one starts.
@@ -83,33 +84,32 @@ export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
 
 // One soft wash per activity so the day reads as many things, not one thing.
 // Assigned in start order: a block takes the first wash no overlapping or
-// touching neighbour already has, and a repeated title (Circling A/B/C) keeps
-// its wash. The static schedule images run the same rule, so they match.
+// touching neighbour already has, and repeats of one activity (Circling
+// A/B/C share a partySession) keep its wash. The static schedule images run
+// the same rule, so they match.
 export const WASH_COUNT = 6
 
 export type Washable = {
   _id: string
-  title: string
+  partySessionId: string | null
   start: number
   end: number
   kind: string
   open?: boolean
 }
 
-const baseTitle = (title: string) => title.replace(/\s[ABC]$/, '')
-
 export function assignWashes(entries: Array<Washable>): Map<string, number> {
   const items = entries
     .filter((e) => e.kind === 'activity' && !e.open)
     .sort(
       (a, b) =>
-        a.start - b.start || a.end - b.end || a.title.localeCompare(b.title),
+        a.start - b.start || a.end - b.end || a._id.localeCompare(b._id),
     )
-  const byTitle = new Map<string, number>()
+  const byActivity = new Map<string, number>()
   const out = new Map<string, number>()
   for (const item of items) {
-    const base = baseTitle(item.title)
-    const known = byTitle.get(base)
+    const activity = item.partySessionId ?? item._id
+    const known = byActivity.get(activity)
     if (known !== undefined) {
       out.set(item._id, known)
       continue
@@ -124,8 +124,8 @@ export function assignWashes(entries: Array<Washable>): Map<string, number> {
     let pick = Array.from({ length: WASH_COUNT }, (_, i) => i).find(
       (i) => !taken.has(i),
     )
-    if (pick === undefined) pick = byTitle.size % WASH_COUNT
-    byTitle.set(base, pick)
+    if (pick === undefined) pick = byActivity.size % WASH_COUNT
+    byActivity.set(activity, pick)
     out.set(item._id, pick)
   }
   return out
