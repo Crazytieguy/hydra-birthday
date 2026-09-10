@@ -316,7 +316,7 @@ function ScheduleRibbon({
         </span>
       )}
       <span
-        className="relative flex shrink-0 items-center pt-[8px] pb-[6px] leading-[22px] [writing-mode:vertical-rl]"
+        className="relative flex shrink-0 items-center pt-[10px] pb-[6px] leading-[22px] [writing-mode:vertical-rl]"
         style={{ width: wide ? RIBBON_TITLE_WIDTH : '100%' }}
       >
         {entry.title}
