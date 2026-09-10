@@ -1,3 +1,8 @@
+import {
+  DISH_MAX_LENGTH,
+  FEEDS_MAX,
+  OFFERS_PER_GUEST,
+} from '../../convex/lib/meals'
 import { ConvexError } from 'convex/values'
 import {
   DESCRIPTION_MAX_LENGTH,
@@ -33,6 +38,9 @@ const messages: Record<string, string> = {
   ALREADY_FACILITATING: "You're already running an activity. One per person.",
   CANNOT_WITHDRAW: "You can't withdraw that one. Message Yoav, Libi, or Guy.",
   CANNOT_DEMOTE_SELF: "You can't remove your own admin access.",
+  INVALID_DISH: `Please say what the dish is (up to ${DISH_MAX_LENGTH} characters).`,
+  INVALID_FEEDS: `How many people does it feed? A whole number, 1 to ${FEEDS_MAX}.`,
+  TOO_MANY_OFFERS: `That's plenty: up to ${OFFERS_PER_GUEST} dishes per person.`,
 }
 
 export function describeError(error: unknown): string {
