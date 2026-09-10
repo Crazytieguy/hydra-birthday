@@ -36,7 +36,10 @@ function FoodPage() {
     <div className="divide-border mx-auto max-w-2xl divide-y py-6 pb-24">
       <div className="space-y-2 pb-5">
         <h1 className="text-3xl font-bold tracking-tight">Bring food?</h1>
-        <p>Optional, for whoever likes to cook or bake.</p>
+        <p>
+          Let us know if you'd like to bring food to share, and we'll fill the
+          gaps as needed.
+        </p>
       </div>
 
       <p className="font-display py-4 font-bold">

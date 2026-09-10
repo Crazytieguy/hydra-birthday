@@ -54,10 +54,10 @@ export const placementOverrides: Partial<Record<string, PlacementOverride>> = {
     start: 14,
     len: 4.5,
     segments: [
-      { label: 'Class', start: 14, end: 14.5 },
-      { label: 'Play', start: 14.5, end: 18.5 },
+      { label: 'Class', start: 14, end: 15 },
+      { label: 'Play', start: 15, end: 18.5 },
     ],
-    note: 'The class runs 14:00 to 14:30, then play goes on all afternoon. Come to the class if you want to play.',
+    note: "Attend the class from 14:00 to 15:00 if you haven't played before!",
   },
   // Hot seat is continuous and come-and-go.
   '7ca8na': { ribbon: true, note: 'Come and go whenever you like.' },
