@@ -96,7 +96,7 @@ export function DayTimeline({ day }: { day: Day }) {
           // Ribbons and a frame's label column come off the lane area first;
           // the rest is split evenly between the lanes running at once.
           const inFrame = frames.some(
-            (f) => f.start <= item.start && item.end <= f.end,
+            (f) => f.start < item.end && item.start < f.end,
           )
           const taken =
             LANE_LEFT +
@@ -167,6 +167,8 @@ const blockClass = (entry: Entry) =>
   cn(
     'font-display text-foreground hover:text-primary absolute overflow-hidden rounded-[4px] border text-left font-bold transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
     voted(entry) ? 'bg-vote-fill border-vote-line' : 'bg-card border-input',
+    // An open slot ("?") is a promise, not an activity: dashed and quiet.
+    entry.title === '?' && 'text-muted-foreground border-dashed bg-transparent',
   )
 
 function ScheduleBlock({
