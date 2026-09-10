@@ -35,7 +35,6 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-vote-fill: var(--vote-fill);
   --color-vote-line: var(--vote-line);
   --color-frame-fill: var(--frame-fill);
   --color-slot-fill: var(--slot-fill);
@@ -79,8 +78,7 @@
   --accent-foreground: #26231c;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #ddd6c2;
-  /* Voted activities on the schedule: a pale pink card and its outline. */
-  --vote-fill: #f9e3ea;
+  /* Voted activities on the schedule: the pink outline. */
   --vote-line: #e6a4bb;
   /* Schedule: meal/party bands, the wash behind an open "?" slot, and the
      ink for the hour axis and band labels (muted, but darker than
@@ -130,7 +128,6 @@
     --accent-foreground: #ece7d8;
     --destructive: oklch(0.704 0.191 22.216);
     --border: #3b382c;
-    --vote-fill: #3a2631;
     --vote-line: #8a4f66;
     --frame-fill: #3c3726;
     --slot-fill: rgba(58, 38, 49, 0.35);

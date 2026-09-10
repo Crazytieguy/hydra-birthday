@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Download } from 'lucide-react'
 import { api } from '../../../../convex/_generated/api'
@@ -25,6 +26,8 @@ export const Route = createFileRoute('/_guest/admin/export')({
 })
 
 type Export = typeof api.export.all._returnType
+// Guest names by id, built once per export for the CSVs that join them in.
+type Names = Map<string, string>
 
 const iso = (ms: number | null) =>
   ms === null ? '' : new Date(ms).toISOString()
@@ -49,10 +52,13 @@ function download(name: string, body: string, type: string) {
 
 const stamp = () => new Date().toISOString().slice(0, 10)
 
-const files = [
+const files: Array<{
+  label: string
+  build: (data: Export, names: Names) => void
+}> = [
   {
     label: 'Everything (JSON)',
-    build: (data: Export) =>
+    build: (data) =>
       download(
         `hydra-birthday-${stamp()}.json`,
         JSON.stringify(
@@ -65,7 +71,7 @@ const files = [
   },
   {
     label: 'Guests (CSV)',
-    build: (data: Export) =>
+    build: (data) =>
       download(
         `guests-${stamp()}.csv`,
         csv([
@@ -91,7 +97,7 @@ const files = [
   },
   {
     label: 'Activities (CSV)',
-    build: (data: Export) =>
+    build: (data) =>
       download(
         `activities-${stamp()}.csv`,
         csv([
@@ -125,8 +131,7 @@ const files = [
   },
   {
     label: 'Votes (CSV)',
-    build: (data: Export) => {
-      const users = new Map(data.users.map((user) => [user._id, user]))
+    build: (data, names) => {
       const activities = new Map(data.activities.map((a) => [a._id, a]))
       download(
         `votes-${stamp()}.csv`,
@@ -141,7 +146,7 @@ const files = [
           ],
           ...data.votes.map((vote) => [
             vote.userId,
-            users.get(vote.userId)?.name ?? null,
+            names.get(vote.userId) ?? null,
             vote.partySessionId,
             activities.get(vote.partySessionId)?.title ?? null,
             vote.strength,
@@ -154,8 +159,7 @@ const files = [
   },
   {
     label: 'Availability (CSV)',
-    build: (data: Export) => {
-      const users = new Map(data.users.map((user) => [user._id, user]))
+    build: (data, names) => {
       const hours = data.grid
         .filter((day) => day.enabled)
         .flatMap((day) => dayHourKeys(day))
@@ -167,7 +171,7 @@ const files = [
             const blocked = new Set(row.blockedHours)
             return hours.map((hour) => [
               row.userId,
-              users.get(row.userId)?.name ?? null,
+              names.get(row.userId) ?? null,
               hour,
               blocked.has(hour),
               iso(row.confirmedAt),
@@ -180,15 +184,14 @@ const files = [
   },
   {
     label: 'Food (CSV)',
-    build: (data: Export) => {
-      const users = new Map(data.users.map((user) => [user._id, user]))
+    build: (data, names) => {
       download(
         `food-${stamp()}.csv`,
         csv([
           ['guest_id', 'guest', 'meal', 'dish', 'created_at'],
           ...data.foodOffers.map((row) => [
             row.userId,
-            users.get(row.userId)?.name ?? null,
+            names.get(row.userId) ?? null,
             row.meal,
             row.dish,
             iso(row._creationTime),
@@ -202,6 +205,10 @@ const files = [
 
 function ExportPage() {
   const { data } = useSessionQuery(api.export.all, {})
+  const names: Names = useMemo(
+    () => new Map(data.users.map((user) => [user._id, user.name])),
+    [data],
+  )
   return (
     <Card>
       <CardHeader>
@@ -219,7 +226,7 @@ function ExportPage() {
               key={file.label}
               type="button"
               variant="outline"
-              onClick={() => file.build(data)}
+              onClick={() => file.build(data, names)}
             >
               <Download data-icon="inline-start" />
               {file.label}
