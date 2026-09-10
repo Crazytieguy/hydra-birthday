@@ -1,6 +1,5 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { Button } from '@/components/ui/button'
 import { DayTimeline } from '@/components/schedule/day-timeline'
 import { sessionQueryOptions, useSessionQuery } from '@/lib/guest'
 
@@ -22,11 +21,8 @@ const shortDate = (iso: string) =>
 function SchedulePage() {
   const { data: days } = useSessionQuery(api.schedule.forGuest, {})
   return (
-    <div className="mx-auto max-w-4xl space-y-4 py-4 pb-20">
+    <div className="mx-auto max-w-4xl space-y-4 py-6 pb-20">
       <div className="mx-auto max-w-2xl space-y-1 lg:mx-0 lg:max-w-none">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to="/">← Back</Link>
-        </Button>
         <h1 className="text-3xl font-bold tracking-tight">
           Tentative Schedule
         </h1>

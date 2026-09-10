@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
 import { DISH_MAX_LENGTH, FEEDS_MAX, MEALS } from '../../../convex/lib/meals'
 import type { MealKey } from '../../../convex/lib/meals'
@@ -35,9 +35,6 @@ function FoodPage() {
   return (
     <div className="divide-border mx-auto max-w-2xl divide-y py-6 pb-24">
       <div className="space-y-2 pb-5">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link to="/">← Back</Link>
-        </Button>
         <h1 className="text-3xl font-bold tracking-tight">Bring food?</h1>
         <p>Optional, for whoever likes to cook or bake.</p>
       </div>
