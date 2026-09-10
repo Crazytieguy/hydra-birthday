@@ -21,6 +21,7 @@ const tabs = [
   { to: '/admin/invites', label: 'Invites' },
   { to: '/admin/guests', label: 'Guests' },
   { to: '/admin/schedule', label: 'Schedule' },
+  { to: '/admin/food', label: 'Food' },
   { to: '/admin/export', label: 'Export' },
 ] as const
 

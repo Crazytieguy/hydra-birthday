@@ -178,6 +178,27 @@ const files = [
       )
     },
   },
+  {
+    label: 'Food (CSV)',
+    build: (data: Export) => {
+      const users = new Map(data.users.map((user) => [user._id, user]))
+      download(
+        `food-${stamp()}.csv`,
+        csv([
+          ['guest_id', 'guest', 'meal', 'dish', 'feeds', 'created_at'],
+          ...data.foodOffers.map((row) => [
+            row.userId,
+            users.get(row.userId)?.name ?? null,
+            row.meal,
+            row.dish,
+            row.feeds,
+            iso(row._creationTime),
+          ]),
+        ]),
+        'text/csv',
+      )
+    },
+  },
 ]
 
 function ExportPage() {
