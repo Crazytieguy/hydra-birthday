@@ -68,10 +68,6 @@ export default defineSchema({
     grantsAdmin: v.optional(v.boolean()),
     createdByUserId: v.optional(v.id('users')),
     claimedAt: v.optional(v.number()),
-    // Legacy, no longer written or read (the claimer is always `forUserId`).
-    // Delete both once `invites:dropClaimedFields` has run on prod.
-    claimedByUserId: v.optional(v.id('users')),
-    claimedSessionTokenHash: v.optional(v.string()),
     // Set when an admin revokes the link, a recovery link is first used, or
     // the account is signed out everywhere: the link stops signing anyone
     // in. Rows stay for history.

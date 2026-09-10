@@ -264,30 +264,6 @@ export const list = adminQuery({
   },
 })
 
-// One-off: unset the legacy claimed-by fields so the schema can drop them.
-// `bunx convex run invites:dropClaimedFields [--prod]`, then delete the
-// fields from convex/schema.ts and this mutation.
-export const dropClaimedFields = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const invites = await takeAll(ctx.db.query('invites'), 1000)
-    let patched = 0
-    for (const invite of invites) {
-      if (
-        invite.claimedByUserId === undefined &&
-        invite.claimedSessionTokenHash === undefined
-      )
-        continue
-      await ctx.db.patch('invites', invite._id, {
-        claimedByUserId: undefined,
-        claimedSessionTokenHash: undefined,
-      })
-      patched++
-    }
-    return { patched }
-  },
-})
-
 // Whether anything besides the invite still points at this user.
 async function userIsReferenced(ctx: QueryCtx, userId: Id<'users'>) {
   const session = await ctx.db
