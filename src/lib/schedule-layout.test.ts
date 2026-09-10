@@ -6,6 +6,7 @@ const at = (start: number, end: number, ribbon = false, name = '') => ({
   end,
   ribbon,
   name,
+  title: name,
 })
 const open = (start: number, end: number) => ({ ...at(start, end), open: true })
 const wide = (start: number, end: number, name: string) => ({
@@ -109,8 +110,8 @@ describe('layoutDay', () => {
     expect(
       blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
     ).toEqual([
-      ['levers', 0, 1, 3],
-      ['jam', 1, 1, 3],
+      ['jam', 0, 1, 3],
+      ['levers', 1, 1, 3],
       ['', 2, 1, 3],
       ['hanabi', 0, 1, 2],
       ['', 1, 1, 2],

@@ -3,6 +3,7 @@
 // minutes; the component turns columns into pixels.
 
 export type Placed = {
+  title: string
   start: number
   end: number
   ribbon: boolean
@@ -92,7 +93,10 @@ export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
       a.start - b.start ||
       Number(a.open === true) - Number(b.open === true) ||
       Number(a.wide === true) - Number(b.wide === true) ||
-      b.end - b.start - (a.end - a.start),
+      b.end - b.start - (a.end - a.start) ||
+      // Same start and length: by title, so the app and the static images
+      // put the same block in the same column.
+      a.title.localeCompare(b.title),
   )
   const ribbonColumns = assignColumns(byStart.filter((entry) => entry.ribbon))
   const blocks = overlapRuns(byStart.filter((entry) => !entry.ribbon))
