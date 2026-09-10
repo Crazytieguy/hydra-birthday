@@ -113,7 +113,7 @@ function Home() {
           title="Bring food?"
           detail={
             food.myCount === 0
-              ? 'Offer a vegan dish for one of the meals. Optional.'
+              ? 'Optional: offer a vegan dish for one of the meals.'
               : `You're bringing ${food.myCount} dish${food.myCount === 1 ? '' : 'es'}.`
           }
           to="/food"
