@@ -16,9 +16,9 @@ type Day = (typeof api.schedule.forGuest._returnType)[number]
 type Entry = Day['entries'][number]
 
 // One day as a vertical timeline: hour axis down the left, frames as tinted
-// bands, activities in lanes sized by duration, long come-and-go activities as
-// narrow ribbons on the right. Lanes come from src/lib/schedule-layout.ts;
-// this file only paints.
+// bands, activities in columns sized by duration, long come-and-go activities
+// as narrow ribbons on the right. Columns come from
+// src/lib/schedule-layout.ts; this file only paints.
 //
 // Every vertical edge is a whole pixel: times are multiples of 30 minutes and
 // PX_PER_HOUR is even, so a block's top and bottom border sit exactly on the
@@ -34,7 +34,7 @@ const LABEL_WIDTH = 34
 // The hour label sits on the same 16px line box as a block title that starts
 // on that hour, so the two read as one row.
 const LABEL_TOP = TITLE_PAD + 1
-const GUTTER = 6 // between side-by-side lanes
+const GUTTER = 6 // between side-by-side columns
 const RIBBON_WIDTH = 24
 const WIDE_RIBBON_WIDTH = 60 // a ribbon with labelled segments beside its title
 const RIBBON_TITLE_WIDTH = 22 // the vertical title column on the right of a wide ribbon
@@ -45,8 +45,8 @@ const BAND_LABEL_WIDTH = 64 // kept free inside a frame so its label reads
 const ribbonWidth = (entry: Entry) =>
   entry.segments.length > 0 ? WIDE_RIBBON_WIDTH : RIBBON_WIDTH
 
-// The pure part of a day's geometry: washes, lanes, and ribbon column
-// widths (each column is as wide as its widest ribbon).
+// The pure part of a day's geometry: washes, block columns, and ribbon
+// column widths (each column is as wide as its widest ribbon).
 function planDay(day: Day) {
   const washes = assignWashes(day.entries)
   const layout = layoutDay(
@@ -142,11 +142,11 @@ export function DayTimeline({ day }: { day: Day }) {
           />
         ))}
 
-        {layout.blocks.map(({ item, lane, lanes }) => {
+        {layout.blocks.map(({ item, column, span, columns }) => {
           // Ribbons and a frame's label column come off the lane area first;
-          // the rest is split evenly between the lanes running at once. A
-          // block gives up as much as any block it runs beside, so lane
-          // edges line up even when only one of them sits in a band.
+          // the rest is split evenly into the run's columns. A block gives
+          // up as much as any block it runs beside, so column edges line up
+          // even when only one of them sits in a band.
           const taken =
             LANE_LEFT +
             Math.max(
@@ -154,8 +154,8 @@ export function DayTimeline({ day }: { day: Day }) {
                 .filter((b) => overlaps(b.item, item))
                 .map((b) => reserved(b)),
             ) +
-            GUTTER * (lanes - 1)
-          const laneWidth = `(100% - ${taken}px) / ${lanes}`
+            GUTTER * (columns - 1)
+          const columnWidth = `(100% - ${taken}px) / ${columns}`
           return (
             <ScheduleBlock
               key={item._id}
@@ -163,8 +163,8 @@ export function DayTimeline({ day }: { day: Day }) {
               wash={washes.get(item._id)}
               onOpen={() => setOpen(item)}
               style={{
-                left: `calc(${LANE_LEFT + lane * GUTTER}px + ${lane} * ${laneWidth})`,
-                width: `calc(${laneWidth})`,
+                left: `calc(${LANE_LEFT + column * GUTTER}px + ${column} * ${columnWidth})`,
+                width: `calc(${span} * ${columnWidth} + ${(span - 1) * GUTTER}px)`,
                 top: y(item.start),
                 height: y(item.end) - y(item.start) + 1,
               }}

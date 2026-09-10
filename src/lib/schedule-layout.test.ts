@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { assignWashes, layoutDay } from './schedule-layout'
+import { assignWashes, layoutDay, overlaps } from './schedule-layout'
 
 const at = (start: number, end: number, ribbon = false, name = '') => ({
   start,
@@ -20,9 +20,11 @@ describe('layoutDay', () => {
       at(660, 720, false, 'b'),
     ])
     expect(ribbonColumns).toBe(0)
-    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
-      ['a', 0, 1],
-      ['b', 0, 1],
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['a', 0, 1, 1],
+      ['b', 0, 1, 1],
     ])
   })
 
@@ -31,9 +33,11 @@ describe('layoutDay', () => {
       at(600, 660, false, 'short'),
       at(600, 720, false, 'long'),
     ])
-    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
-      ['long', 0, 2],
-      ['short', 1, 2],
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['long', 0, 1, 2],
+      ['short', 1, 1, 2],
     ])
   })
 
@@ -54,9 +58,9 @@ describe('layoutDay', () => {
       ['pdt', 1],
     ])
     const circling = blocks.find((b) => b.item.name === 'circling')!
-    expect(circling).toMatchObject({ lanes: 1, ribbonColumns: 2 })
+    expect(circling).toMatchObject({ columns: 1, ribbonColumns: 2 })
     const fusion = blocks.find((b) => b.item.name === 'fusion')!
-    expect(fusion).toMatchObject({ lanes: 1, ribbonColumns: 0 })
+    expect(fusion).toMatchObject({ columns: 1, ribbonColumns: 0 })
   })
 
   test('a block only narrows for the blocks it shares minutes with', () => {
@@ -68,10 +72,12 @@ describe('layoutDay', () => {
       at(660, 690, false, 'yoga'),
       at(690, 780, false, 'potluck'),
     ])
-    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
-      ['levers', 0, 2],
-      ['yoga', 1, 2],
-      ['potluck', 1, 2],
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['levers', 0, 1, 2],
+      ['yoga', 1, 1, 2],
+      ['potluck', 1, 1, 2],
     ])
   })
 
@@ -81,10 +87,12 @@ describe('layoutDay', () => {
       at(630, 700, false, 'c'),
       at(700, 760, false, 'b'),
     ])
-    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
-      ['a', 0, 2],
-      ['c', 1, 2],
-      ['b', 0, 1],
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['a', 0, 1, 2],
+      ['c', 1, 1, 2],
+      ['b', 0, 1, 1],
     ])
   })
 
@@ -98,13 +106,97 @@ describe('layoutDay', () => {
       open(900, 1080),
       at(900, 1080, false, 'hanabi'),
     ])
-    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
-      ['levers', 0, 3],
-      ['jam', 1, 3],
-      ['', 2, 3],
-      ['hanabi', 0, 2],
-      ['', 1, 2],
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['levers', 0, 1, 3],
+      ['jam', 1, 1, 3],
+      ['', 2, 1, 3],
+      ['hanabi', 0, 1, 2],
+      ['', 1, 1, 2],
     ])
+  })
+
+  // Two blocks sharing a minute must not share a column, and a block alone
+  // in its minutes covers every column of its run.
+  const expectNoCollisions = (
+    blocks: ReturnType<typeof layoutDay<ReturnType<typeof at>>>['blocks'],
+  ) => {
+    for (const a of blocks) {
+      const alone = !blocks.some((b) => b !== a && overlaps(a.item, b.item))
+      if (alone) expect(a.span).toBe(a.columns)
+      for (const b of blocks) {
+        if (a === b || !overlaps(a.item, b.item)) continue
+        const apart =
+          a.column + a.span <= b.column || b.column + b.span <= a.column
+        expect(apart, `${a.item.name} and ${b.item.name} collide`).toBe(true)
+      }
+    }
+  }
+
+  test('staggered overlaps never collide', () => {
+    // A 10:00-11:00, B 10:30-12:00, C and D 11:00-12:00: three columns for
+    // the whole run. A used to take a half while B took a third, and the
+    // two crossed.
+    const { blocks } = layoutDay([
+      at(600, 660, false, 'a'),
+      at(630, 720, false, 'b'),
+      at(660, 720, false, 'c'),
+      at(660, 720, false, 'd'),
+    ])
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['a', 0, 1, 3],
+      ['b', 1, 1, 3],
+      ['c', 0, 1, 3],
+      ['d', 2, 1, 3],
+    ])
+    expectNoCollisions(blocks)
+  })
+
+  test('a block that only touches the next pair keeps the full width', () => {
+    // Saturday: Circling A 14:00-15:30 alone, then Circling B beside Improv,
+    // then Circling C beside Utopia. Touching end-to-start is not
+    // overlapping, so each row is its own run.
+    const { blocks } = layoutDay([
+      at(840, 930, false, 'circling a'),
+      at(930, 1020, false, 'circling b'),
+      at(930, 1020, false, 'improv'),
+      at(1020, 1110, false, 'circling c'),
+      at(1020, 1110, false, 'utopia'),
+    ])
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['circling a', 0, 1, 1],
+      ['circling b', 0, 1, 2],
+      ['improv', 1, 1, 2],
+      ['circling c', 0, 1, 2],
+      ['utopia', 1, 1, 2],
+    ])
+    expectNoCollisions(blocks)
+  })
+
+  test('a block widens into columns nothing it overlaps is using', () => {
+    // Three blocks start at 10:00; two end at 10:30 and a fourth follows
+    // them. It takes the second column and widens into the third, which is
+    // free for its whole time; the long block stays in the first column.
+    const { blocks } = layoutDay([
+      at(600, 660, false, 'long'),
+      at(600, 630, false, 'p'),
+      at(600, 630, false, 'q'),
+      at(630, 660, false, 'wide'),
+    ])
+    expect(
+      blocks.map((b) => [b.item.name, b.column, b.span, b.columns]),
+    ).toEqual([
+      ['long', 0, 1, 3],
+      ['p', 1, 1, 3],
+      ['q', 2, 1, 3],
+      ['wide', 1, 2, 3],
+    ])
+    expectNoCollisions(blocks)
   })
 })
 
