@@ -9,6 +9,9 @@ export type Placed = {
   // An open slot ("?"): placed after the real activities it starts with, so
   // it takes the rightmost lane.
   open?: boolean
+  // A ribbon with labelled sub-spans beside its title: placed after the plain
+  // ribbons it starts with, so it takes the inner column, next to the lanes.
+  wide?: boolean
 }
 
 export type Layout<T extends Placed> = {
@@ -18,7 +21,8 @@ export type Layout<T extends Placed> = {
   // `ribbonColumns` is how many ribbon columns (counted from the right) are
   // alive during the block and must be subtracted from the lane area first.
   blocks: Array<{ item: T; lane: number; lanes: number; ribbonColumns: number }>
-  // Ribbons, each in its own column counted from the right.
+  // Ribbons, each in its own column counted from the right: column 0 sits on
+  // the day's right edge.
   ribbons: Array<{ item: T; column: number }>
   ribbonColumns: number
 }
@@ -45,6 +49,7 @@ export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
     (a, b) =>
       a.start - b.start ||
       Number(a.open === true) - Number(b.open === true) ||
+      Number(a.wide === true) - Number(b.wide === true) ||
       b.end - b.start - (a.end - a.start),
   )
   const ribbonLanes = assignLanes(byStart.filter((entry) => entry.ribbon))

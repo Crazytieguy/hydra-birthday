@@ -23,14 +23,18 @@ type Entry = Day['entries'][number]
 // Every vertical edge is a whole pixel: times are multiples of 30 minutes and
 // PX_PER_HOUR is even, so a block's top and bottom border sit exactly on the
 // hour and half-hour lines.
-const PX_PER_HOUR = 88 // a 30-minute block is a 44px tap target
-const LANE_LEFT = 44 // the axis column: labels plus half-hour ticks
+//
+// A 30-minute block is 32px: a one-line title (16px) with 8px above and
+// below, measured from the grid lines. Taller blocks keep the title at the
+// top with the same 8px.
+const PX_PER_HOUR = 64
+const TITLE_PAD = 7 // plus the 1px border makes the 8px
+const LANE_LEFT = 44 // the axis column, for the hour labels
 const LABEL_WIDTH = 34
 // The hour label is 13px Nunito Sans on a 13px line; its digits' tops sit
 // this far below the line box's top, so shifting the box up by it puts the
 // top of the digits on the hour line. Measured on a 2x screenshot.
 const LABEL_ASCENT_GAP = 1
-const TICK = 6
 const GUTTER = 6 // between side-by-side lanes
 const RIBBON_WIDTH = 24
 const WIDE_RIBBON_WIDTH = 60 // a ribbon with labelled segments beside its title
@@ -55,7 +59,11 @@ export function DayTimeline({ day }: { day: Day }) {
   const layout = layoutDay(
     day.entries
       .filter((e) => e.kind === 'activity')
-      .map((e) => ({ ...e, open: isOpenSlot(e) })),
+      .map((e) => ({
+        ...e,
+        open: isOpenSlot(e),
+        wide: e.segments.length > 0,
+      })),
   )
   // Each ribbon column is as wide as its widest ribbon.
   const columnWidths = Array.from({ length: layout.ribbonColumns }, (_, c) =>
@@ -90,7 +98,7 @@ export function DayTimeline({ day }: { day: Day }) {
     (_, i) => dayStart + i,
   )
   const halfHours = hours.slice(0, -1).map((h) => h * 60 + 30)
-  const rule = 'bg-border absolute h-px'
+  const rule = 'bg-border absolute right-0 h-px'
 
   return (
     <>
@@ -102,7 +110,9 @@ export function DayTimeline({ day }: { day: Day }) {
             style={{
               left: LANE_LEFT,
               top: y(entry.start),
-              height: y(entry.end) - y(entry.start),
+              // One extra pixel, like a block, so the bottom hairline sits on
+              // the grid line rather than the row above it.
+              height: y(entry.end) - y(entry.start) + 1,
             }}
           />
         ))}
@@ -119,14 +129,14 @@ export function DayTimeline({ day }: { day: Day }) {
             >
               {formatMinutes(h * 60)}
             </div>
-            <div className={cn(rule, 'right-0')} style={{ left: LANE_LEFT }} />
+            <div className={rule} style={{ left: LANE_LEFT }} />
           </div>
         ))}
         {halfHours.map((m) => (
           <div
             key={m}
-            className={rule}
-            style={{ left: LANE_LEFT - TICK, width: TICK, top: y(m) }}
+            className={cn(rule, 'opacity-40')}
+            style={{ left: LANE_LEFT, top: y(m) }}
           />
         ))}
 
@@ -167,9 +177,7 @@ export function DayTimeline({ day }: { day: Day }) {
             y={y}
             onOpen={() => setOpen(item)}
             style={{
-              right:
-                sumWidths(column + 1, layout.ribbonColumns) +
-                (layout.ribbonColumns - 1 - column) * RIBBON_GAP,
+              right: sumWidths(0, column) + column * RIBBON_GAP,
               width: ribbonWidth(item),
               top: y(item.start),
               height: y(item.end) - y(item.start) + 1,
@@ -246,9 +254,9 @@ function ScheduleBlock({
       aria-label={isOpenSlot(entry) ? 'Open slot' : undefined}
       className={cn(
         blockClass(entry),
-        'flex items-start pl-2 pr-6 pt-[5px] pb-1 text-sm leading-4',
+        'flex items-start pl-2 pr-6 text-sm leading-4',
       )}
-      style={style}
+      style={{ ...style, paddingTop: TITLE_PAD }}
     >
       {isOpenSlot(entry) ? (
         <span className="absolute inset-0 flex items-center justify-center text-[28px] leading-none">
@@ -257,7 +265,7 @@ function ScheduleBlock({
       ) : (
         entry.title
       )}
-      <Chevron className="top-[5px] right-[5px]" />
+      <Chevron className="top-[9px] right-[5px]" />
     </button>
   )
 }
@@ -301,11 +309,12 @@ function ScheduleRibbon({
             <span
               key={segment.label}
               className={cn(
-                'block overflow-hidden px-[2px] pt-[5px] text-center leading-4',
+                'block overflow-hidden px-[2px] text-center leading-4',
                 i > 0 && 'border-t border-inherit',
                 i === entry.segments.length - 1 && 'flex-1',
               )}
               style={{
+                paddingTop: TITLE_PAD,
                 height: y(segment.end) - y(segment.start) - (i === 0 ? 1 : 0),
               }}
             >

@@ -8,6 +8,10 @@ const at = (start: number, end: number, ribbon = false, name = '') => ({
   name,
 })
 const open = (start: number, end: number) => ({ ...at(start, end), open: true })
+const wide = (start: number, end: number, name: string) => ({
+  ...at(start, end, true, name),
+  wide: true,
+})
 
 describe('layoutDay', () => {
   test('non-overlapping blocks each get the full width', () => {
@@ -35,10 +39,12 @@ describe('layoutDay', () => {
 
   test('two simultaneous ribbons take two columns from overlapping blocks only', () => {
     // Saturday: Hot seat + PDT ribbons 14:00-18:30; Circling 14:00-15:30;
-    // party blocks after 20:00 untouched.
+    // party blocks after 20:00 untouched. PDT has sub-spans, so it takes the
+    // inner column (1) even though it is listed first; Hot seat sits on the
+    // right edge (column 0).
     const { blocks, ribbons, ribbonColumns } = layoutDay([
+      wide(840, 1110, 'pdt'),
       at(840, 1110, true, 'hot seat'),
-      at(840, 1110, true, 'pdt'),
       at(840, 930, false, 'circling'),
       at(1200, 1260, false, 'fusion'),
     ])
