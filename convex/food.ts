@@ -1,12 +1,7 @@
 import { ConvexError, v } from 'convex/values'
 import { adminQuery, sessionMutation, sessionQuery } from './lib/auth'
 import { takeAll } from './lib/collect'
-import {
-  DISH_MAX_LENGTH,
-  FEEDS_MAX,
-  MEALS,
-  OFFERS_PER_GUEST,
-} from './lib/meals'
+import { DISH_MAX_LENGTH, MEALS, OFFERS_PER_GUEST } from './lib/meals'
 import { collapseWhitespace } from './lib/names'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
@@ -20,15 +15,13 @@ const mealValidator = v.union(
   v.literal('sun-dinner'),
 )
 
-const offerArgs = { meal: mealValidator, dish: v.string(), feeds: v.number() }
+const offerArgs = { meal: mealValidator, dish: v.string() }
 
-function validateOffer(args: { dish: string; feeds: number }) {
+function validateOffer(args: { dish: string }) {
   const dish = collapseWhitespace(args.dish)
   if (!dish || dish.length > DISH_MAX_LENGTH)
     throw new ConvexError({ code: 'INVALID_DISH' as const })
-  if (!Number.isInteger(args.feeds) || args.feeds < 1 || args.feeds > FEEDS_MAX)
-    throw new ConvexError({ code: 'INVALID_FEEDS' as const })
-  return { dish, feeds: args.feeds }
+  return { dish }
 }
 
 const allOffers = (ctx: QueryCtx) =>
@@ -55,7 +48,6 @@ export const list = sessionQuery({
             meal: offer.meal,
             name: users.get(offer.userId)?.name ?? '?',
             dish: offer.dish,
-            feeds: offer.feeds,
             mine: offer.userId === ctx.user._id,
           })),
       })),
@@ -128,7 +120,6 @@ export const all = adminQuery({
         name: (await ctx.db.get('users', row.userId))?.name ?? '?',
         meal: row.meal,
         dish: row.dish,
-        feeds: row.feeds,
       })),
     )
     return MEALS.map((meal) => {
@@ -136,7 +127,6 @@ export const all = adminQuery({
       return {
         ...meal,
         offers: mealRows,
-        totalFeeds: mealRows.reduce((sum, row) => sum + row.feeds, 0),
       }
     })
   },

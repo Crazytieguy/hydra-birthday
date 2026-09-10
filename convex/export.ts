@@ -63,7 +63,6 @@ export const all = adminQuery({
         userId: row.userId,
         meal: row.meal,
         dish: row.dish,
-        feeds: row.feeds,
       })),
     }
   },

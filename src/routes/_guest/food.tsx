@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { DISH_MAX_LENGTH, FEEDS_MAX, MEALS } from '../../../convex/lib/meals'
+import { DISH_MAX_LENGTH, MEALS } from '../../../convex/lib/meals'
 import type { MealKey } from '../../../convex/lib/meals'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,14 +37,12 @@ function FoodPage() {
       <div className="space-y-2 pb-5">
         <h1 className="text-3xl font-bold tracking-tight">Bring food?</h1>
         <p>
-          Let us know if you'd like to bring food to share, and we'll fill the
-          gaps as needed.
+          Let us know if you'd like to bring vegan food to share, and we'll fill
+          the gaps as needed.
         </p>
       </div>
 
-      <p className="font-display py-4 font-bold">
-        All food is vegan, yours too. No meat, fish, dairy, eggs, or honey.
-      </p>
+      <p className="font-display py-4 font-bold">Only bring vegan food.</p>
 
       <OfferForm
         key={editing?._id ?? 'new'}
@@ -82,8 +80,6 @@ function FoodPage() {
                       ) : (
                         offer.name
                       )}
-                      {' · feeds '}
-                      {offer.feeds}
                     </p>
                   </div>
                   {offer.mine && (
@@ -126,20 +122,18 @@ function OfferForm({
 }) {
   const [meal, setMeal] = useState<MealKey>(editing?.meal ?? 'sat-brunch')
   const [dish, setDish] = useState(editing?.dish ?? '')
-  const [feeds, setFeeds] = useState(editing ? String(editing.feeds) : '')
   const offer = useSessionAction(api.food.offer)
   const update = useSessionAction(api.food.update)
   const action = editing ? update : offer
 
   async function submit() {
-    const args = { meal, dish, feeds: Number(feeds) }
+    const args = { meal, dish }
     // run() resolves undefined on failure (the error is shown below).
     const result = editing
       ? await update.run({ offerId: editing._id, ...args })
       : await offer.run(args)
     if (result !== undefined) {
       setDish('')
-      setFeeds('')
       onDone()
     }
   }
@@ -180,27 +174,8 @@ function OfferForm({
           required
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="feeds">Feeds how many?</Label>
-        <div className="flex items-center gap-3">
-          <Input
-            id="feeds"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={FEEDS_MAX}
-            value={feeds}
-            onChange={(e) => setFeeds(e.target.value)}
-            className="w-24"
-            required
-          />
-          <p className="text-muted-foreground text-sm">
-            As a meal, not a taste.
-          </p>
-        </div>
-      </div>
       <div className="flex gap-2 pt-1">
-        <Button type="submit" disabled={action.busy || !dish.trim() || !feeds}>
+        <Button type="submit" disabled={action.busy || !dish.trim()}>
           {editing ? 'Save' : 'Add'}
         </Button>
         {editing && (

@@ -22,7 +22,7 @@ async function join(t: T, label: string, grantsAdmin = false) {
 
 const failsWith = (code: string) => expect.objectContaining({ data: { code } })
 
-const stew = { meal: 'sat-dinner' as const, dish: '  Lentil   stew ', feeds: 8 }
+const stew = { meal: 'sat-dinner' as const, dish: '  Lentil   stew ' }
 
 describe('food offers', () => {
   test('a guest offers a dish; everyone sees it, only the owner sees it as theirs', async () => {
@@ -37,7 +37,6 @@ describe('food offers', () => {
       expect.objectContaining({
         name: 'Alice',
         dish: 'Lentil stew',
-        feeds: 8,
         mine: true,
       }),
     ])
@@ -73,7 +72,6 @@ describe('food offers', () => {
       offerId,
       meal: 'sun-brunch',
       dish: 'Banana bread',
-      feeds: 4,
     })
     const listed = await t.query(api.food.list, { sessionToken: alice })
     expect(listed.meals.find((m) => m.key === 'sat-dinner')!.offers).toEqual([])
@@ -81,7 +79,6 @@ describe('food offers', () => {
       listed.meals.find((m) => m.key === 'sun-brunch')!.offers[0],
     ).toMatchObject({
       dish: 'Banana bread',
-      feeds: 4,
     })
     await t.mutation(api.food.remove, { sessionToken: alice, offerId })
     expect(
@@ -95,11 +92,6 @@ describe('food offers', () => {
     await expect(
       t.mutation(api.food.offer, { sessionToken: alice, ...stew, dish: '  ' }),
     ).rejects.toEqual(failsWith('INVALID_DISH'))
-    for (const feeds of [0, 2.5, 201]) {
-      await expect(
-        t.mutation(api.food.offer, { sessionToken: alice, ...stew, feeds }),
-      ).rejects.toEqual(failsWith('INVALID_FEEDS'))
-    }
     for (let i = 0; i < OFFERS_PER_GUEST; i++)
       await t.mutation(api.food.offer, { sessionToken: alice, ...stew })
     await expect(
@@ -116,11 +108,10 @@ describe('food offers', () => {
       sessionToken: admin,
       ...stew,
       dish: 'Brownies',
-      feeds: 4,
     })
     const meals = await t.query(api.food.all, { sessionToken: admin })
     const satDinner = meals.find((m) => m.key === 'sat-dinner')!
-    expect(satDinner).toMatchObject({ key: 'sat-dinner', totalFeeds: 12 })
+    expect(satDinner).toMatchObject({ key: 'sat-dinner' })
     expect(satDinner.offers.map((o) => o.name).sort()).toEqual([
       'Alice',
       'Yoav',

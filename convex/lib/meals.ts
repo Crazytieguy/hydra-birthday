@@ -10,5 +10,4 @@ export const MEALS = [
 export type MealKey = (typeof MEALS)[number]['key']
 
 export const DISH_MAX_LENGTH = 80
-export const FEEDS_MAX = 200
 export const OFFERS_PER_GUEST = 10

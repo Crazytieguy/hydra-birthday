@@ -37,7 +37,7 @@ function FoodAdminPage() {
             <CardDescription>
               {meal.offers.length === 0
                 ? 'No offers yet.'
-                : `${meal.offers.length} dish${meal.offers.length === 1 ? '' : 'es'}, feeding about ${meal.totalFeeds} by the guests' own estimates.`}
+                : `${meal.offers.length} dish${meal.offers.length === 1 ? '' : 'es'}.`}
             </CardDescription>
           </CardHeader>
           {meal.offers.length > 0 && (
@@ -47,7 +47,6 @@ function FoodAdminPage() {
                   <TableRow>
                     <TableHead>Guest</TableHead>
                     <TableHead>Dish</TableHead>
-                    <TableHead className="text-right">Feeds</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -55,9 +54,6 @@ function FoodAdminPage() {
                     <TableRow key={offer._id}>
                       <TableCell>{offer.name}</TableCell>
                       <TableCell>{offer.dish}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {offer.feeds}
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

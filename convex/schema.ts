@@ -114,7 +114,7 @@ export default defineSchema({
     ),
   }).index('by_day', ['day']),
 
-  // "I can bring X for meal Y, it feeds N." Everyone sees everyone's offers
+  // "I can bring X for meal Y." Everyone sees everyone's offers
   // (deliberately, so people don't all bring hummus); only the owner edits.
   foodOffers: defineTable({
     userId: v.id('users'),
@@ -125,7 +125,6 @@ export default defineSchema({
       v.literal('sun-dinner'),
     ),
     dish: v.string(),
-    feeds: v.number(),
   })
     .index('by_userId', ['userId'])
     .index('by_meal', ['meal']),

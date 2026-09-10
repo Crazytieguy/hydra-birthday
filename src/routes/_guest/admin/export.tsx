@@ -185,13 +185,12 @@ const files = [
       download(
         `food-${stamp()}.csv`,
         csv([
-          ['guest_id', 'guest', 'meal', 'dish', 'feeds', 'created_at'],
+          ['guest_id', 'guest', 'meal', 'dish', 'created_at'],
           ...data.foodOffers.map((row) => [
             row.userId,
             users.get(row.userId)?.name ?? null,
             row.meal,
             row.dish,
-            row.feeds,
             iso(row._creationTime),
           ]),
         ]),
