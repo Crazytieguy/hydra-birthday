@@ -52,6 +52,7 @@ export const list = sessionQuery({
           .filter((offer) => offer.meal === meal.key)
           .map((offer) => ({
             _id: offer._id,
+            meal: offer.meal,
             name: users.get(offer.userId)?.name ?? '?',
             dish: offer.dish,
             feeds: offer.feeds,

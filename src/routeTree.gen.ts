@@ -15,11 +15,14 @@ import { Route as GuestIndexRouteImport } from './routes/_guest/index'
 import { Route as GuestActivitiesRouteImport } from './routes/_guest/activities'
 import { Route as GuestAdminRouteImport } from './routes/_guest/admin'
 import { Route as GuestAvailabilityRouteImport } from './routes/_guest/availability'
+import { Route as GuestFoodRouteImport } from './routes/_guest/food'
 import { Route as GuestProposeRouteImport } from './routes/_guest/propose'
+import { Route as GuestScheduleRouteImport } from './routes/_guest/schedule'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GuestAdminIndexRouteImport } from './routes/_guest/admin/index'
 import { Route as GuestAdminActivitiesRouteImport } from './routes/_guest/admin/activities'
 import { Route as GuestAdminExportRouteImport } from './routes/_guest/admin/export'
+import { Route as GuestAdminFoodRouteImport } from './routes/_guest/admin/food'
 import { Route as GuestAdminGuestsRouteImport } from './routes/_guest/admin/guests'
 import { Route as GuestAdminInvitesRouteImport } from './routes/_guest/admin/invites'
 import { Route as GuestAdminScheduleRouteImport } from './routes/_guest/admin/schedule'
@@ -53,9 +56,19 @@ const GuestAvailabilityRoute = GuestAvailabilityRouteImport.update({
   path: '/availability',
   getParentRoute: () => GuestRoute,
 } as any)
+const GuestFoodRoute = GuestFoodRouteImport.update({
+  id: '/food',
+  path: '/food',
+  getParentRoute: () => GuestRoute,
+} as any)
 const GuestProposeRoute = GuestProposeRouteImport.update({
   id: '/propose',
   path: '/propose',
+  getParentRoute: () => GuestRoute,
+} as any)
+const GuestScheduleRoute = GuestScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
   getParentRoute: () => GuestRoute,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
@@ -76,6 +89,11 @@ const GuestAdminActivitiesRoute = GuestAdminActivitiesRouteImport.update({
 const GuestAdminExportRoute = GuestAdminExportRouteImport.update({
   id: '/export',
   path: '/export',
+  getParentRoute: () => GuestAdminRoute,
+} as any)
+const GuestAdminFoodRoute = GuestAdminFoodRouteImport.update({
+  id: '/food',
+  path: '/food',
   getParentRoute: () => GuestAdminRoute,
 } as any)
 const GuestAdminGuestsRoute = GuestAdminGuestsRouteImport.update({
@@ -100,10 +118,13 @@ export interface FileRoutesByFullPath {
   '/activities': typeof GuestActivitiesRoute
   '/admin': typeof GuestAdminRouteWithChildren
   '/availability': typeof GuestAvailabilityRoute
+  '/food': typeof GuestFoodRoute
   '/propose': typeof GuestProposeRoute
+  '/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/admin/activities': typeof GuestAdminActivitiesRoute
   '/admin/export': typeof GuestAdminExportRoute
+  '/admin/food': typeof GuestAdminFoodRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
@@ -113,11 +134,14 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/activities': typeof GuestActivitiesRoute
   '/availability': typeof GuestAvailabilityRoute
+  '/food': typeof GuestFoodRoute
   '/propose': typeof GuestProposeRoute
+  '/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/': typeof GuestIndexRoute
   '/admin/activities': typeof GuestAdminActivitiesRoute
   '/admin/export': typeof GuestAdminExportRoute
+  '/admin/food': typeof GuestAdminFoodRoute
   '/admin/guests': typeof GuestAdminGuestsRoute
   '/admin/invites': typeof GuestAdminInvitesRoute
   '/admin/schedule': typeof GuestAdminScheduleRoute
@@ -130,11 +154,14 @@ export interface FileRoutesById {
   '/_guest/activities': typeof GuestActivitiesRoute
   '/_guest/admin': typeof GuestAdminRouteWithChildren
   '/_guest/availability': typeof GuestAvailabilityRoute
+  '/_guest/food': typeof GuestFoodRoute
   '/_guest/propose': typeof GuestProposeRoute
+  '/_guest/schedule': typeof GuestScheduleRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_guest/': typeof GuestIndexRoute
   '/_guest/admin/activities': typeof GuestAdminActivitiesRoute
   '/_guest/admin/export': typeof GuestAdminExportRoute
+  '/_guest/admin/food': typeof GuestAdminFoodRoute
   '/_guest/admin/guests': typeof GuestAdminGuestsRoute
   '/_guest/admin/invites': typeof GuestAdminInvitesRoute
   '/_guest/admin/schedule': typeof GuestAdminScheduleRoute
@@ -148,10 +175,13 @@ export interface FileRouteTypes {
     | '/activities'
     | '/admin'
     | '/availability'
+    | '/food'
     | '/propose'
+    | '/schedule'
     | '/invite/$token'
     | '/admin/activities'
     | '/admin/export'
+    | '/admin/food'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
@@ -161,11 +191,14 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/activities'
     | '/availability'
+    | '/food'
     | '/propose'
+    | '/schedule'
     | '/invite/$token'
     | '/'
     | '/admin/activities'
     | '/admin/export'
+    | '/admin/food'
     | '/admin/guests'
     | '/admin/invites'
     | '/admin/schedule'
@@ -177,11 +210,14 @@ export interface FileRouteTypes {
     | '/_guest/activities'
     | '/_guest/admin'
     | '/_guest/availability'
+    | '/_guest/food'
     | '/_guest/propose'
+    | '/_guest/schedule'
     | '/invite/$token'
     | '/_guest/'
     | '/_guest/admin/activities'
     | '/_guest/admin/export'
+    | '/_guest/admin/food'
     | '/_guest/admin/guests'
     | '/_guest/admin/invites'
     | '/_guest/admin/schedule'
@@ -238,11 +274,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestAvailabilityRouteImport
       parentRoute: typeof GuestRoute
     }
+    '/_guest/food': {
+      id: '/_guest/food'
+      path: '/food'
+      fullPath: '/food'
+      preLoaderRoute: typeof GuestFoodRouteImport
+      parentRoute: typeof GuestRoute
+    }
     '/_guest/propose': {
       id: '/_guest/propose'
       path: '/propose'
       fullPath: '/propose'
       preLoaderRoute: typeof GuestProposeRouteImport
+      parentRoute: typeof GuestRoute
+    }
+    '/_guest/schedule': {
+      id: '/_guest/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof GuestScheduleRouteImport
       parentRoute: typeof GuestRoute
     }
     '/invite/$token': {
@@ -273,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestAdminExportRouteImport
       parentRoute: typeof GuestAdminRoute
     }
+    '/_guest/admin/food': {
+      id: '/_guest/admin/food'
+      path: '/food'
+      fullPath: '/admin/food'
+      preLoaderRoute: typeof GuestAdminFoodRouteImport
+      parentRoute: typeof GuestAdminRoute
+    }
     '/_guest/admin/guests': {
       id: '/_guest/admin/guests'
       path: '/guests'
@@ -300,6 +357,7 @@ declare module '@tanstack/react-router' {
 interface GuestAdminRouteChildren {
   GuestAdminActivitiesRoute: typeof GuestAdminActivitiesRoute
   GuestAdminExportRoute: typeof GuestAdminExportRoute
+  GuestAdminFoodRoute: typeof GuestAdminFoodRoute
   GuestAdminGuestsRoute: typeof GuestAdminGuestsRoute
   GuestAdminInvitesRoute: typeof GuestAdminInvitesRoute
   GuestAdminScheduleRoute: typeof GuestAdminScheduleRoute
@@ -309,6 +367,7 @@ interface GuestAdminRouteChildren {
 const GuestAdminRouteChildren: GuestAdminRouteChildren = {
   GuestAdminActivitiesRoute: GuestAdminActivitiesRoute,
   GuestAdminExportRoute: GuestAdminExportRoute,
+  GuestAdminFoodRoute: GuestAdminFoodRoute,
   GuestAdminGuestsRoute: GuestAdminGuestsRoute,
   GuestAdminInvitesRoute: GuestAdminInvitesRoute,
   GuestAdminScheduleRoute: GuestAdminScheduleRoute,
@@ -323,7 +382,9 @@ interface GuestRouteChildren {
   GuestActivitiesRoute: typeof GuestActivitiesRoute
   GuestAdminRoute: typeof GuestAdminRouteWithChildren
   GuestAvailabilityRoute: typeof GuestAvailabilityRoute
+  GuestFoodRoute: typeof GuestFoodRoute
   GuestProposeRoute: typeof GuestProposeRoute
+  GuestScheduleRoute: typeof GuestScheduleRoute
   GuestIndexRoute: typeof GuestIndexRoute
 }
 
@@ -331,7 +392,9 @@ const GuestRouteChildren: GuestRouteChildren = {
   GuestActivitiesRoute: GuestActivitiesRoute,
   GuestAdminRoute: GuestAdminRouteWithChildren,
   GuestAvailabilityRoute: GuestAvailabilityRoute,
+  GuestFoodRoute: GuestFoodRoute,
   GuestProposeRoute: GuestProposeRoute,
+  GuestScheduleRoute: GuestScheduleRoute,
   GuestIndexRoute: GuestIndexRoute,
 }
 

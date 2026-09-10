@@ -11,12 +11,14 @@ import { SESSIONS_CAP } from './partySessions'
 export const all = adminQuery({
   args: {},
   handler: async (ctx) => {
-    const [users, sessions, votes, availability] = await Promise.all([
-      takeAll(ctx.db.query('users'), 1000),
-      takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
-      takeAll(ctx.db.query('votes'), 20000),
-      takeAll(ctx.db.query('availability'), 1000),
-    ])
+    const [users, sessions, votes, availability, foodOffers] =
+      await Promise.all([
+        takeAll(ctx.db.query('users'), 1000),
+        takeAll(ctx.db.query('partySessions'), SESSIONS_CAP),
+        takeAll(ctx.db.query('votes'), 20000),
+        takeAll(ctx.db.query('availability'), 1000),
+        takeAll(ctx.db.query('foodOffers'), 1000),
+      ])
     return {
       grid: days,
       users: await Promise.all(
@@ -54,6 +56,14 @@ export const all = adminQuery({
         userId: row.userId,
         blockedHours: row.blockedHours,
         confirmedAt: row.confirmedAt ?? null,
+      })),
+      foodOffers: foodOffers.map((row) => ({
+        _id: row._id,
+        _creationTime: row._creationTime,
+        userId: row.userId,
+        meal: row.meal,
+        dish: row.dish,
+        feeds: row.feeds,
       })),
     }
   },
