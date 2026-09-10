@@ -122,12 +122,15 @@ export function DayTimeline({ day }: { day: Day }) {
             className="absolute inset-x-0"
             style={{ top: y(h * 60) }}
           >
-            <div
-              className="text-ink-dim absolute left-0 text-right text-[13px] leading-4 font-bold tabular-nums"
-              style={{ width: LABEL_WIDTH, top: LABEL_TOP }}
-            >
-              {formatMinutes(h * 60)}
-            </div>
+            {/* The closing line gets no label: nothing starts there. */}
+            {h < dayEnd && (
+              <div
+                className="text-ink-dim absolute left-0 text-right text-[13px] leading-4 font-bold tabular-nums"
+                style={{ width: LABEL_WIDTH, top: LABEL_TOP }}
+              >
+                {formatMinutes(h * 60)}
+              </div>
+            )}
             <div className={rule} style={{ left: 0 }} />
           </div>
         ))}
