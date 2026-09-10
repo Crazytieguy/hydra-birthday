@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronRightIcon } from 'lucide-react'
 import type { api } from '../../../convex/_generated/api'
 import { formatMinutes } from '../../../convex/lib/schedule'
 import { layoutDay } from '@/lib/schedule-layout'
@@ -25,12 +26,22 @@ type Entry = Day['entries'][number]
 const PX_PER_HOUR = 88 // a 30-minute block is a 44px tap target
 const LANE_LEFT = 44 // the axis column: labels plus half-hour ticks
 const LABEL_WIDTH = 34
+// The hour label is 13px Nunito Sans on a 13px line; its digits' tops sit
+// this far below the line box's top, so shifting the box up by it puts the
+// top of the digits on the hour line. Measured on a 2x screenshot.
+const LABEL_ASCENT_GAP = 1
 const TICK = 6
 const GUTTER = 6 // between side-by-side lanes
 const RIBBON_WIDTH = 24
+const WIDE_RIBBON_WIDTH = 60 // a ribbon with labelled segments beside its title
+const RIBBON_TITLE_WIDTH = 22 // the vertical title column inside a wide ribbon
 const RIBBON_GAP = 6 // between two ribbons
 const RIBBON_MARGIN = 8 // between the lanes and the first ribbon
 const BAND_LABEL_WIDTH = 64 // kept free inside a frame so its label reads
+
+const isOpenSlot = (entry: Entry) => entry.title === '?'
+const ribbonWidth = (entry: Entry) =>
+  entry.segments.length > 0 ? WIDE_RIBBON_WIDTH : RIBBON_WIDTH
 
 export function DayTimeline({ day }: { day: Day }) {
   const [open, setOpen] = useState<Entry | null>(null)
@@ -41,11 +52,38 @@ export function DayTimeline({ day }: { day: Day }) {
   const height = y(dayEnd * 60) + 1
 
   const frames = day.entries.filter((e) => e.kind === 'frame')
-  const layout = layoutDay(day.entries.filter((e) => e.kind === 'activity'))
+  const layout = layoutDay(
+    day.entries
+      .filter((e) => e.kind === 'activity')
+      .map((e) => ({ ...e, open: isOpenSlot(e) })),
+  )
+  // Each ribbon column is as wide as its widest ribbon.
+  const columnWidths = Array.from({ length: layout.ribbonColumns }, (_, c) =>
+    Math.max(
+      RIBBON_WIDTH,
+      ...layout.ribbons
+        .filter((r) => r.column === c)
+        .map((r) => ribbonWidth(r.item)),
+    ),
+  )
+  const sumWidths = (from: number, to: number) =>
+    columnWidths.slice(from, to).reduce((sum, w) => sum + w, 0)
   const ribbonsWidth = (columns: number) =>
     columns > 0
-      ? columns * RIBBON_WIDTH + (columns - 1) * RIBBON_GAP + RIBBON_MARGIN
+      ? sumWidths(0, columns) + (columns - 1) * RIBBON_GAP + RIBBON_MARGIN
       : 0
+
+  const reserved = ({
+    item,
+    ribbonColumns,
+  }: {
+    item: Entry
+    ribbonColumns: number
+  }) =>
+    ribbonsWidth(ribbonColumns) +
+    (frames.some((f) => f.start < item.end && item.start < f.end)
+      ? BAND_LABEL_WIDTH
+      : 0)
 
   const hours = Array.from(
     { length: dayEnd - dayStart + 1 },
@@ -76,8 +114,8 @@ export function DayTimeline({ day }: { day: Day }) {
             style={{ top: y(h * 60) }}
           >
             <div
-              className="text-muted-foreground absolute left-0 -mt-[7px] text-right text-[11px] leading-[14px] font-semibold tabular-nums"
-              style={{ width: LABEL_WIDTH }}
+              className="text-ink-dim absolute left-0 text-right text-[13px] leading-[13px] font-bold tabular-nums"
+              style={{ width: LABEL_WIDTH, top: -LABEL_ASCENT_GAP }}
             >
               {formatMinutes(h * 60)}
             </div>
@@ -92,16 +130,20 @@ export function DayTimeline({ day }: { day: Day }) {
           />
         ))}
 
-        {layout.blocks.map(({ item, lane, lanes, ribbonColumns }) => {
+        {layout.blocks.map(({ item, lane, lanes }) => {
           // Ribbons and a frame's label column come off the lane area first;
-          // the rest is split evenly between the lanes running at once.
-          const inFrame = frames.some(
-            (f) => f.start < item.end && item.start < f.end,
-          )
+          // the rest is split evenly between the lanes running at once. A
+          // block gives up as much as any block it runs beside, so lane
+          // edges line up even when only one of them sits in a band.
           const taken =
             LANE_LEFT +
-            ribbonsWidth(ribbonColumns) +
-            (inFrame ? BAND_LABEL_WIDTH : 0) +
+            Math.max(
+              ...layout.blocks
+                .filter(
+                  (b) => b.item.start < item.end && item.start < b.item.end,
+                )
+                .map((b) => reserved(b)),
+            ) +
             GUTTER * (lanes - 1)
           const laneWidth = `(100% - ${taken}px) / ${lanes}`
           return (
@@ -122,12 +164,13 @@ export function DayTimeline({ day }: { day: Day }) {
           <ScheduleRibbon
             key={item._id}
             entry={item}
+            y={y}
             onOpen={() => setOpen(item)}
             style={{
               right:
-                (layout.ribbonColumns - 1 - column) *
-                (RIBBON_WIDTH + RIBBON_GAP),
-              width: RIBBON_WIDTH,
+                sumWidths(column + 1, layout.ribbonColumns) +
+                (layout.ribbonColumns - 1 - column) * RIBBON_GAP,
+              width: ribbonWidth(item),
               top: y(item.start),
               height: y(item.end) - y(item.start) + 1,
             }}
@@ -151,10 +194,10 @@ function ScheduleBand({
 }) {
   return (
     <div
-      className="bg-accent absolute right-0 border-y border-border"
+      className="bg-frame-fill border-border absolute right-0 border-y"
       style={style}
     >
-      <span className="text-muted-foreground absolute top-[7px] right-[10px] text-[11px] leading-4 font-bold tracking-[0.08em] uppercase">
+      <span className="text-ink-dim absolute top-[4px] right-[8px] text-[11px] leading-4 font-bold tracking-[0.08em] uppercase">
         {entry.title}
       </span>
     </div>
@@ -163,13 +206,29 @@ function ScheduleBand({
 
 const voted = (entry: Entry) => entry.myVote !== null
 
+// Blocks and ribbons are buttons that open the detail sheet. Hover lifts
+// them (tint, firmer outline, soft shadow, pink title); on touch the chevron
+// says "more" and the pressed state repeats the hover tint. Quieter than the
+// voted highlight, which keeps its pink fill either way.
 const blockClass = (entry: Entry) =>
   cn(
-    'font-display text-foreground hover:text-primary absolute overflow-hidden rounded-[4px] border text-left font-bold transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
-    voted(entry) ? 'bg-vote-fill border-vote-line' : 'bg-card border-input',
-    // An open slot ("?") is a promise, not an activity: dashed and quiet.
-    entry.title === '?' && 'text-muted-foreground border-dashed bg-transparent',
+    'font-display text-foreground hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
+    voted(entry)
+      ? 'bg-vote-fill border-vote-line hover:border-primary/70 active:border-primary/70'
+      : 'bg-card border-input hover:bg-accent hover:border-muted-foreground active:bg-accent active:border-muted-foreground',
+    // An open slot ("?") is a promise, not an activity: a big question mark
+    // on a soft wash, dashed.
+    isOpenSlot(entry) &&
+      'text-muted-foreground bg-slot-fill hover:bg-slot-fill active:bg-slot-fill border-dashed',
   )
+
+// The "tap for more" mark in a block's corner.
+const Chevron = ({ className }: { className?: string }) => (
+  <ChevronRightIcon
+    aria-hidden
+    className={cn('absolute size-3 opacity-60', className)}
+  />
+)
 
 function ScheduleBlock({
   entry,
@@ -184,37 +243,77 @@ function ScheduleBlock({
     <button
       type="button"
       onClick={onOpen}
+      aria-label={isOpenSlot(entry) ? 'Open slot' : undefined}
       className={cn(
         blockClass(entry),
-        'flex items-start px-[10px] py-2 text-sm leading-4',
+        'flex items-start pl-2 pr-6 pt-[5px] pb-1 text-sm leading-4',
       )}
       style={style}
     >
-      {entry.title}
+      {isOpenSlot(entry) ? (
+        <span className="absolute inset-0 flex items-center justify-center text-[28px] leading-none">
+          ?
+        </span>
+      ) : (
+        entry.title
+      )}
+      <Chevron className="top-[5px] right-[5px]" />
     </button>
   )
 }
 
 function ScheduleRibbon({
   entry,
+  y,
   onOpen,
   style,
 }: {
   entry: Entry
+  y: (minutes: number) => number
   onOpen: () => void
   style: React.CSSProperties
 }) {
+  const wide = entry.segments.length > 0
   return (
     <button
       type="button"
       onClick={onOpen}
       className={cn(
         blockClass(entry),
-        'flex items-start justify-center py-2 text-xs leading-[22px] whitespace-nowrap',
+        'flex items-stretch text-[13px] whitespace-nowrap',
       )}
       style={style}
     >
-      <span className="[writing-mode:vertical-rl]">{entry.title}</span>
+      <span
+        className="relative flex shrink-0 items-center py-[6px] leading-[22px] [writing-mode:vertical-rl]"
+        style={{ width: wide ? RIBBON_TITLE_WIDTH : '100%' }}
+      >
+        {entry.title}
+        <Chevron className="bottom-[5px] left-1/2 -ml-[6px]" />
+      </span>
+      {wide && (
+        // Sub-spans stacked to scale, split by hairlines that land on the
+        // grid: the first is one pixel short of its span because the
+        // ribbon's own top border takes that row, the rest carry their
+        // divider as a top border.
+        <span className="flex min-w-0 flex-1 flex-col border-l border-inherit">
+          {entry.segments.map((segment, i) => (
+            <span
+              key={segment.label}
+              className={cn(
+                'block overflow-hidden px-[2px] pt-[5px] text-center leading-4',
+                i > 0 && 'border-t border-inherit',
+                i === entry.segments.length - 1 && 'flex-1',
+              )}
+              style={{
+                height: y(segment.end) - y(segment.start) - (i === 0 ? 1 : 0),
+              }}
+            >
+              {segment.label}
+            </span>
+          ))}
+        </span>
+      )}
     </button>
   )
 }

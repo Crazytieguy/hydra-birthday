@@ -76,6 +76,7 @@ type Entry = {
   frameLabel?: string
   ribbon?: boolean
   note?: string
+  segments?: Array<{ label: string; start: number; end: number }>
 }
 
 const board = JSON.parse(readFileSync(positionals[0], 'utf8')) as {
@@ -162,6 +163,11 @@ for (const placement of board.placements) {
     title: override.title ?? titleRenames[title] ?? title,
     ribbon: override.ribbon || undefined,
     note: override.note,
+    segments: override.segments?.map((segment) => ({
+      label: segment.label,
+      start: hoursToMinutes(segment.start),
+      end: hoursToMinutes(segment.end),
+    })),
   })
 }
 

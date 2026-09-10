@@ -105,6 +105,13 @@ export default defineSchema({
     // A long come-and-go activity, drawn as a narrow ribbon beside the lanes.
     ribbon: v.optional(v.boolean()),
     note: v.optional(v.string()),
+    // Labelled sub-spans drawn inside a ribbon (Person Do Thing: the class,
+    // then the play). Minutes from midnight, like start/end.
+    segments: v.optional(
+      v.array(
+        v.object({ label: v.string(), start: v.number(), end: v.number() }),
+      ),
+    ),
   }).index('by_day', ['day']),
 
   // "I can bring X for meal Y, it feeds N." Everyone sees everyone's offers

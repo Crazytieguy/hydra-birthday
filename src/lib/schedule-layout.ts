@@ -6,6 +6,9 @@ export type Placed = {
   start: number
   end: number
   ribbon: boolean
+  // An open slot ("?"): placed after the real activities it starts with, so
+  // it takes the rightmost lane.
+  open?: boolean
 }
 
 export type Layout<T extends Placed> = {
@@ -39,7 +42,10 @@ const columnCount = (placed: Array<{ lane: number }>) =>
 
 export function layoutDay<T extends Placed>(entries: Array<T>): Layout<T> {
   const byStart = [...entries].sort(
-    (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start),
+    (a, b) =>
+      a.start - b.start ||
+      Number(a.open === true) - Number(b.open === true) ||
+      b.end - b.start - (a.end - a.start),
   )
   const ribbonLanes = assignLanes(byStart.filter((entry) => entry.ribbon))
   const laneBlocks = byStart.filter((entry) => !entry.ribbon)

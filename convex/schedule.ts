@@ -67,6 +67,11 @@ const entryFields = {
   frameLabel: v.optional(v.string()),
   ribbon: v.optional(v.boolean()),
   note: v.optional(v.string()),
+  segments: v.optional(
+    v.array(
+      v.object({ label: v.string(), start: v.number(), end: v.number() }),
+    ),
+  ),
 }
 
 export const forGuest = sessionQuery({
@@ -133,6 +138,7 @@ export const forGuest = sessionQuery({
             ? (entry.frameLabel ?? '')
             : (entry.title ?? session?.title ?? ''),
         ribbon: entry.ribbon === true,
+        segments: entry.segments ?? [],
         note: entry.note ?? null,
         description: session?.description ?? null,
         facilitatorNames: live?.facilitatorNames ?? [],

@@ -32,6 +32,8 @@ export type PlacementOverride = {
   title?: string
   ribbon?: boolean
   note?: string
+  // Labelled sub-spans inside a ribbon (hours from midnight).
+  segments?: Array<{ label: string; start: number; end: number }>
   // Replace the board's time (hours from midnight, decimals for minutes).
   start?: number
   len?: number
@@ -51,6 +53,10 @@ export const placementOverrides: Partial<Record<string, PlacementOverride>> = {
     ribbon: true,
     start: 14,
     len: 4.5,
+    segments: [
+      { label: 'Class', start: 14, end: 14.5 },
+      { label: 'Play', start: 14.5, end: 18.5 },
+    ],
     note: 'The class runs 14:00 to 14:30, then play goes on all afternoon. Come to the class if you want to play.',
   },
   // Hot seat is continuous and come-and-go.

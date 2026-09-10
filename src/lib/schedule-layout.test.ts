@@ -7,6 +7,7 @@ const at = (start: number, end: number, ribbon = false, name = '') => ({
   ribbon,
   name,
 })
+const open = (start: number, end: number) => ({ ...at(start, end), open: true })
 
 describe('layoutDay', () => {
   test('non-overlapping blocks each get the full width', () => {
@@ -78,6 +79,25 @@ describe('layoutDay', () => {
       ['a', 0, 2],
       ['c', 1, 2],
       ['b', 0, 1],
+    ])
+  })
+
+  test('an open slot takes the last lane of the activities it shares a slot with', () => {
+    // Sunday: "?" 13:00-15:00 sorts before "REAL Jam Session" by title and
+    // starts with Levers, but must never sit left of a real activity.
+    const { blocks } = layoutDay([
+      open(780, 900),
+      at(780, 900, false, 'levers'),
+      at(780, 900, false, 'jam'),
+      open(900, 1080),
+      at(900, 1080, false, 'hanabi'),
+    ])
+    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
+      ['levers', 0, 3],
+      ['jam', 1, 3],
+      ['', 2, 3],
+      ['hanabi', 0, 2],
+      ['', 1, 2],
     ])
   })
 })

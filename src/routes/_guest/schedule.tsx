@@ -22,8 +22,8 @@ const shortDate = (iso: string) =>
 function SchedulePage() {
   const { data: days } = useSessionQuery(api.schedule.forGuest, {})
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-6 pb-24">
-      <div className="mx-auto max-w-2xl space-y-2 lg:mx-0 lg:max-w-none">
+    <div className="mx-auto max-w-4xl space-y-4 py-4 pb-20">
+      <div className="mx-auto max-w-2xl space-y-1 lg:mx-0 lg:max-w-none">
         <Button asChild variant="ghost" size="sm" className="-ml-3">
           <Link to="/">← Back</Link>
         </Button>
@@ -40,10 +40,10 @@ function SchedulePage() {
           Nothing is placed yet. Check back soon.
         </p>
       ) : (
-        <div className="mx-auto max-w-2xl space-y-11 lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:space-y-0">
+        <div className="mx-auto max-w-2xl space-y-8 lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:space-y-0">
           {days.map((day) => (
             <section key={day.date}>
-              <div className="mb-[18px] flex items-baseline gap-2">
+              <div className="mb-2 flex items-baseline gap-2">
                 <h2 className="font-display text-primary text-[22px] leading-[26px] font-bold">
                   {day.label}
                 </h2>
