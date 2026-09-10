@@ -73,8 +73,8 @@ function InvitePage() {
   if (shown.kind === 'existing' && shown.mine) {
     return (
       <Screen
-        title="This link is for another device"
-        description="You're already signed in here. Open it on the phone or laptop you want to sign in."
+        title="You're already signed in here"
+        description="Open this same link on any other phone or laptop to sign that one in too."
       >
         <Button asChild>
           <Link to="/">Open the app</Link>
