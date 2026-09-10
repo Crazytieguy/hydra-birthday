@@ -122,48 +122,46 @@ export const WASH_COUNT = 2
 
 export type Washable = {
   _id: string
-  partySessionId: string | null
   title: string
   start: number
   end: number
-  kind: string
-  ribbon?: boolean
   open?: boolean
 }
 
-export function assignWashes(entries: Array<Washable>): Map<string, number> {
-  const items = entries
-    .filter((e) => e.kind === 'activity' && !e.open && !e.ribbon)
+export type WashedBlock = { item: Washable; column: number; span: number }
+
+// Side by side must differ; a block also avoids the wash of whatever sits
+// directly above it in its own columns, so the two washes checkerboard down
+// the day. No grouping by activity: Circling A, B and C may differ.
+export function assignWashes(blocks: Array<WashedBlock>): Map<string, number> {
+  const items = blocks
+    .filter(({ item }) => !item.open)
     .sort(
       (a, b) =>
-        a.start - b.start ||
-        a.end - b.end ||
-        a.title.localeCompare(b.title) ||
-        a._id.localeCompare(b._id),
+        a.item.start - b.item.start ||
+        a.column - b.column ||
+        a.item.title.localeCompare(b.item.title) ||
+        a.item._id.localeCompare(b.item._id),
     )
-  const byActivity = new Map<string, number>()
   const out = new Map<string, number>()
   const washes = Array.from({ length: WASH_COUNT }, (_, i) => i)
-  for (const item of items) {
-    const activity = item.partySessionId ?? item._id
-    const known = byActivity.get(activity)
-    if (known !== undefined) {
-      out.set(item._id, known)
-      continue
-    }
-    const placed = items.filter((o) => out.has(o._id))
-    const washesOf = (neighbours: Array<Washable>) =>
-      new Set(neighbours.map((o) => out.get(o._id)))
-    const hard = washesOf(placed.filter((o) => overlaps(o, item)))
+  const sharesColumns = (a: WashedBlock, b: WashedBlock) =>
+    a.column < b.column + b.span && b.column < a.column + a.span
+  items.forEach((block, index) => {
+    const placed = items.filter((o) => out.has(o.item._id))
+    const washesOf = (neighbours: Array<WashedBlock>) =>
+      new Set(neighbours.map((o) => out.get(o.item._id)))
+    const hard = washesOf(placed.filter((o) => overlaps(o.item, block.item)))
     const soft = washesOf(
-      placed.filter((o) => o.end === item.start || item.end === o.start),
+      placed.filter(
+        (o) => o.item.end === block.item.start && sharesColumns(o, block),
+      ),
     )
     const pick =
       washes.find((i) => !hard.has(i) && !soft.has(i)) ??
       washes.find((i) => !hard.has(i)) ??
-      byActivity.size % WASH_COUNT
-    byActivity.set(activity, pick)
-    out.set(item._id, pick)
-  }
+      index % WASH_COUNT
+    out.set(block.item._id, pick)
+  })
   return out
 }

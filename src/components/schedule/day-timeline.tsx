@@ -48,12 +48,12 @@ const ribbonWidth = (entry: Entry) =>
 // The pure part of a day's geometry: washes, block columns, and ribbon
 // column widths (each column is as wide as its widest ribbon).
 function planDay(day: Day) {
-  const washes = assignWashes(day.entries)
   const layout = layoutDay(
     day.entries
       .filter((e) => e.kind === 'activity')
       .map((e) => ({ ...e, wide: e.segments.length > 0 })),
   )
+  const washes = assignWashes(layout.blocks)
   const columnWidths = Array.from({ length: layout.ribbonColumns }, (_, c) =>
     Math.max(
       RIBBON_WIDTH,
