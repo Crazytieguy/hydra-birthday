@@ -15,7 +15,7 @@ describe('layoutDay', () => {
       at(660, 720, false, 'b'),
     ])
     expect(ribbonColumns).toBe(0)
-    expect(blocks.map((b) => [b.item.name, b.x, b.width])).toEqual([
+    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
       ['a', 0, 1],
       ['b', 0, 1],
     ])
@@ -26,13 +26,13 @@ describe('layoutDay', () => {
       at(600, 660, false, 'short'),
       at(600, 720, false, 'long'),
     ])
-    expect(blocks.map((b) => [b.item.name, b.x, b.width])).toEqual([
-      ['long', 0, 0.5],
-      ['short', 0.5, 0.5],
+    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
+      ['long', 0, 2],
+      ['short', 1, 2],
     ])
   })
 
-  test('two simultaneous ribbons take two columns from overlapping clusters only', () => {
+  test('two simultaneous ribbons take two columns from overlapping blocks only', () => {
     // Saturday: Hot seat + PDT ribbons 14:00-18:30; Circling 14:00-15:30;
     // party blocks after 20:00 untouched.
     const { blocks, ribbons, ribbonColumns } = layoutDay([
@@ -47,28 +47,37 @@ describe('layoutDay', () => {
       ['pdt', 1],
     ])
     const circling = blocks.find((b) => b.item.name === 'circling')!
-    expect(circling).toMatchObject({ width: 1, gutterColumns: 2 })
+    expect(circling).toMatchObject({ lanes: 1, ribbonColumns: 2 })
     const fusion = blocks.find((b) => b.item.name === 'fusion')!
-    expect(fusion).toMatchObject({ width: 1, gutterColumns: 0 })
+    expect(fusion).toMatchObject({ lanes: 1, ribbonColumns: 0 })
   })
 
-  test('a block in the gutter of a ribbon it does not overlap still lines up with its cluster', () => {
+  test('a block only narrows for the blocks it shares minutes with', () => {
+    // Sunday: 12 Levers 10:00-12:00 with Yoga 11:00-11:30 inside it, then
+    // Media potluck 11:30-13:00. Levers is squeezed by both; Yoga and the
+    // potluck never meet, so each is half width, not a third.
     const { blocks } = layoutDay([
-      at(840, 900, true, 'ribbon'),
-      at(840, 930, false, 'a'),
-      at(920, 960, false, 'b'),
+      at(600, 720, false, 'levers'),
+      at(660, 690, false, 'yoga'),
+      at(690, 780, false, 'potluck'),
     ])
-    expect(blocks.map((b) => b.gutterColumns)).toEqual([1, 1])
+    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
+      ['levers', 0, 2],
+      ['yoga', 1, 2],
+      ['potluck', 1, 2],
+    ])
   })
 
-  test('overlap chains through a middle block into one cluster', () => {
+  test('a block after an overlap chain gets the full width back', () => {
     const { blocks } = layoutDay([
       at(600, 660, false, 'a'),
-      at(660, 720, false, 'b'),
       at(630, 700, false, 'c'),
+      at(700, 760, false, 'b'),
     ])
-    // a and c overlap; b overlaps c, so all three chain into one cluster of
-    // two lanes.
-    expect(blocks.every((b) => b.width === 0.5)).toBe(true)
+    expect(blocks.map((b) => [b.item.name, b.lane, b.lanes])).toEqual([
+      ['a', 0, 2],
+      ['c', 1, 2],
+      ['b', 0, 1],
+    ])
   })
 })

@@ -35,6 +35,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-vote-fill: var(--vote-fill);
+  --color-vote-line: var(--vote-line);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -74,6 +76,9 @@
   --accent-foreground: #26231c;
   --destructive: oklch(0.577 0.245 27.325);
   --border: #ddd6c2;
+  /* Voted activities on the schedule: a pale pink card and its outline. */
+  --vote-fill: #f9e3ea;
+  --vote-line: #e6a4bb;
   --input: #d3cbb4;
   --ring: #d64e7e;
   --chart-1: oklch(0.87 0 0);
@@ -110,6 +115,8 @@
     --accent-foreground: #ece7d8;
     --destructive: oklch(0.704 0.191 22.216);
     --border: #3b382c;
+    --vote-fill: #3a2631;
+    --vote-line: #8a4f66;
     --input: #4a4635;
     --ring: #ee7ba3;
     --chart-1: oklch(0.87 0 0);

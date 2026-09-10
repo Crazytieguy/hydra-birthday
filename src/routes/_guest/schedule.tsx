@@ -40,14 +40,14 @@ function SchedulePage() {
           Nothing is placed yet. Check back soon.
         </p>
       ) : (
-        <div className="mx-auto max-w-2xl space-y-10 lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:space-y-0">
+        <div className="mx-auto max-w-2xl space-y-11 lg:mx-0 lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:space-y-0">
           {days.map((day) => (
-            <section key={day.date} className="space-y-3">
-              <div className="flex items-baseline gap-2">
-                <h2 className="font-display text-primary text-xl font-bold">
+            <section key={day.date}>
+              <div className="mb-[18px] flex items-baseline gap-2">
+                <h2 className="font-display text-primary text-[22px] leading-[26px] font-bold">
                   {day.label}
                 </h2>
-                <span className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+                <span className="text-muted-foreground text-[13px] leading-[18px] font-semibold">
                   {shortDate(day.date)}
                 </span>
               </div>
