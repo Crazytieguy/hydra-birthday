@@ -32,7 +32,7 @@ describe('food offers', () => {
     await t.mutation(api.food.offer, { sessionToken: alice, ...stew })
 
     const forAlice = await t.query(api.food.list, { sessionToken: alice })
-    expect(forAlice.myCount).toBe(1)
+    expect(await t.query(api.food.myCount, { sessionToken: alice })).toBe(1)
     expect(forAlice.meals.find((m) => m.key === 'sat-dinner')!.offers).toEqual([
       expect.objectContaining({
         name: 'Alice',
@@ -41,7 +41,7 @@ describe('food offers', () => {
       }),
     ])
     const forBob = await t.query(api.food.list, { sessionToken: bob })
-    expect(forBob.myCount).toBe(0)
+    expect(await t.query(api.food.myCount, { sessionToken: bob })).toBe(0)
     expect(
       forBob.meals.find((m) => m.key === 'sat-dinner')!.offers[0],
     ).toMatchObject({ mine: false })
@@ -81,9 +81,7 @@ describe('food offers', () => {
       dish: 'Banana bread',
     })
     await t.mutation(api.food.remove, { sessionToken: alice, offerId })
-    expect(
-      (await t.query(api.food.list, { sessionToken: alice })).myCount,
-    ).toBe(0)
+    expect(await t.query(api.food.myCount, { sessionToken: alice })).toBe(0)
   })
 
   test('rejects blank dishes, silly serving counts, and too many offers', async () => {

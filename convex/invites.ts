@@ -30,14 +30,14 @@ async function findInvite(ctx: QueryCtx, token: string) {
 export const peek = query({
   args: { token: v.string(), sessionToken: v.optional(v.string()) },
   handler: async (ctx, { token, sessionToken }) => {
-    const invite = await findInvite(ctx, token)
+    const [invite, viewer] = await Promise.all([
+      findInvite(ctx, token),
+      sessionToken ? findSessionUser(ctx, sessionToken) : null,
+    ])
     if (!invite || invite.revokedAt !== undefined)
       return { status: 'invalid' as const }
     const user = await ctx.db.get('users', invite.forUserId)
     if (!user) return { status: 'invalid' as const }
-    const viewer = sessionToken
-      ? await findSessionUser(ctx, sessionToken)
-      : null
     const viewerInfo = viewer && { name: viewer.name }
     // A first-time link keeps the editable-name UI; a link into a joined
     // account (device, recovery) signs in under the existing name.
@@ -45,7 +45,7 @@ export const peek = query({
       return {
         status: 'available' as const,
         kind: 'new' as const,
-        label: user.name,
+        name: user.name,
         viewer: viewerInfo,
       }
     }
@@ -74,12 +74,14 @@ export const claim = mutation({
     if (sessionToken.length < MIN_SESSION_TOKEN_LENGTH) {
       throw new ConvexError({ code: 'INVALID_SESSION_TOKEN' as const })
     }
-    const invite = await findInvite(ctx, token)
+    const [invite, tokenHash] = await Promise.all([
+      findInvite(ctx, token),
+      hashToken(sessionToken),
+    ])
     if (!invite || invite.revokedAt !== undefined)
       throw new ConvexError({ code: 'INVALID_INVITE' as const })
     const user = await ctx.db.get('users', invite.forUserId)
     if (!user) throw new ConvexError({ code: 'INVALID_INVITE' as const })
-    const tokenHash = await hashToken(sessionToken)
     const existingSession = await findSessionByHash(ctx, tokenHash)
     if (existingSession) {
       // A retry whose first attempt landed is done; a stranger's token
@@ -107,13 +109,8 @@ export const claim = mutation({
     }
 
     await insertSession(ctx, user._id, tokenHash)
-    if (firstUse) {
-      await ctx.db.patch('invites', invite._id, {
-        claimedAt: Date.now(),
-        claimedByUserId: user._id,
-        claimedSessionTokenHash: tokenHash,
-      })
-    }
+    if (firstUse)
+      await ctx.db.patch('invites', invite._id, { claimedAt: Date.now() })
     return null
   },
 })
@@ -237,13 +234,37 @@ export const list = adminQuery({
     return invites.map((invite) => ({
       _id: invite._id,
       label: invite.label,
+      forUserId: invite.forUserId,
       kind: invite.replacesSessions ? ('recovery' as const) : ('new' as const),
       grantsAdmin: invite.grantsAdmin === true,
       createdAt: invite._creationTime,
       claimedAt: invite.claimedAt ?? null,
-      claimedByUserId: invite.claimedByUserId ?? null,
       revokedAt: invite.revokedAt ?? null,
     }))
+  },
+})
+
+// One-off: unset the legacy claimed-by fields so the schema can drop them.
+// `bunx convex run invites:dropClaimedFields [--prod]`, then delete the
+// fields from convex/schema.ts and this mutation.
+export const dropClaimedFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const invites = await takeAll(ctx.db.query('invites'), 1000)
+    let patched = 0
+    for (const invite of invites) {
+      if (
+        invite.claimedByUserId === undefined &&
+        invite.claimedSessionTokenHash === undefined
+      )
+        continue
+      await ctx.db.patch('invites', invite._id, {
+        claimedByUserId: undefined,
+        claimedSessionTokenHash: undefined,
+      })
+      patched++
+    }
+    return { patched }
   },
 })
 

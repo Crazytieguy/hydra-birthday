@@ -22,6 +22,7 @@ import type * as lib_schedule from "../lib/schedule.js";
 import type * as lib_sessions from "../lib/sessions.js";
 import type * as lib_slots from "../lib/slots.js";
 import type * as lib_tokens from "../lib/tokens.js";
+import type * as lib_users from "../lib/users.js";
 import type * as partySessions from "../partySessions.js";
 import type * as schedule from "../schedule.js";
 import type * as users from "../users.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sessions": typeof lib_sessions;
   "lib/slots": typeof lib_slots;
   "lib/tokens": typeof lib_tokens;
+  "lib/users": typeof lib_users;
   partySessions: typeof partySessions;
   schedule: typeof schedule;
   users: typeof users;

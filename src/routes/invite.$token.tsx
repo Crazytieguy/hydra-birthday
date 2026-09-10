@@ -134,9 +134,7 @@ function ClaimForm({
   onJoinFail: () => void
 }) {
   const join = useJoin(token)
-  const [name, setName] = useState(
-    invite.kind === 'new' ? invite.label : invite.name,
-  )
+  const [name, setName] = useState(invite.name)
   const { viewer } = invite
 
   async function submit() {
@@ -150,7 +148,7 @@ function ClaimForm({
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           {invite.kind === 'new'
-            ? `${invite.label}, you're invited`
+            ? `${invite.name}, you're invited`
             : "You're invited"}
         </h1>
         <p className="text-muted-foreground">

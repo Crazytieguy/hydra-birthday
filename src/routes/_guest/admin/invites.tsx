@@ -168,11 +168,7 @@ function Invites() {
               <InviteRowView
                 key={invite._id}
                 invite={invite}
-                claimedByName={
-                  invite.claimedByUserId
-                    ? names.get(invite.claimedByUserId)
-                    : undefined
-                }
+                claimedByName={names.get(invite.forUserId)}
               />
             ))}
           </TableBody>

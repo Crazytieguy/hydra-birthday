@@ -1,5 +1,10 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import { MEALS } from './lib/meals'
+
+export const mealValidator = v.union(
+  ...MEALS.map((meal) => v.literal(meal.key)),
+)
 
 // One row of the guest-facing schedule; shared with schedule:replaceAll so
 // the sync script and the table can't drift.
@@ -53,8 +58,8 @@ export default defineSchema({
   // consumed: claiming binds a browser to the account, and the same link
   // signs further browsers in until it is revoked. The first claim may also
   // rename the account (prefilled from the user's minted name). `label` is
-  // the mint-time snapshot of the name; `claimedAt`, `claimedByUserId` and
-  // `claimedSessionTokenHash` record the first use only.
+  // the mint-time snapshot of the name; `claimedAt` is when the link was
+  // first used.
   invites: defineTable({
     tokenHash: v.string(),
     label: v.string(),
@@ -63,6 +68,8 @@ export default defineSchema({
     grantsAdmin: v.optional(v.boolean()),
     createdByUserId: v.optional(v.id('users')),
     claimedAt: v.optional(v.number()),
+    // Legacy, no longer written or read (the claimer is always `forUserId`).
+    // Delete both once `invites:dropClaimedFields` has run on prod.
     claimedByUserId: v.optional(v.id('users')),
     claimedSessionTokenHash: v.optional(v.string()),
     // Set when an admin revokes the link, a recovery link is first used, or
@@ -124,14 +131,7 @@ export default defineSchema({
   // (deliberately, so people don't all bring hummus); only the owner edits.
   foodOffers: defineTable({
     userId: v.id('users'),
-    meal: v.union(
-      v.literal('sat-brunch'),
-      v.literal('sat-dinner'),
-      v.literal('sun-brunch'),
-      v.literal('sun-dinner'),
-    ),
+    meal: mealValidator,
     dish: v.string(),
-  })
-    .index('by_userId', ['userId'])
-    .index('by_meal', ['meal']),
+  }).index('by_userId', ['userId']),
 })

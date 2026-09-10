@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { CalendarIcon } from 'lucide-react'
 import { api } from '../../../convex/_generated/api'
 import { sessionQueryOptions, useMe, useSessionQuery } from '@/lib/guest'
 
@@ -13,7 +14,7 @@ export const Route = createFileRoute('/_guest/')({
         sessionQueryOptions(api.availability.mine, {}, sessionToken),
       ),
       context.queryClient.ensureQueryData(
-        sessionQueryOptions(api.food.list, {}, sessionToken),
+        sessionQueryOptions(api.food.myCount, {}, sessionToken),
       ),
     ])
   },
@@ -24,7 +25,7 @@ function Home() {
   const me = useMe()
   const { data: sessionData } = useSessionQuery(api.partySessions.list, {})
   const { data: mine } = useSessionQuery(api.availability.mine, {})
-  const { data: food } = useSessionQuery(api.food.list, {})
+  const { data: dishes } = useSessionQuery(api.food.myCount, {})
 
   const voteCount = sessionData.sessions.filter((s) => s.myVote !== null).length
   const doneVoting = sessionData.votesConfirmedAt !== null
@@ -59,7 +60,7 @@ function Home() {
         to="/schedule"
         className="border-primary bg-primary/8 hover:bg-primary/12 flex items-center gap-4 rounded-xl border px-4 py-4 transition-colors"
       >
-        <CalendarGlyph />
+        <CalendarIcon aria-hidden className="text-primary size-7 shrink-0" />
         <div className="min-w-0 flex-grow">
           <h2 className="font-display text-primary text-lg font-bold">
             Tentative schedule
@@ -112,35 +113,15 @@ function Home() {
           number={4}
           title="Bring food?"
           detail={
-            food.myCount === 0
+            dishes === 0
               ? 'Optional: offer a vegan dish for one of the meals.'
-              : `You're bringing ${food.myCount} dish${food.myCount === 1 ? '' : 'es'}.`
+              : `You're bringing ${dishes} dish${dishes === 1 ? '' : 'es'}.`
           }
           to="/food"
-          state={food.myCount > 0 ? 'done' : 'current'}
+          state={dishes > 0 ? 'done' : 'current'}
         />
       </div>
     </div>
-  )
-}
-
-function CalendarGlyph() {
-  return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="text-primary shrink-0"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="3" />
-      <path d="M3 10h18M8 3v4M16 3v4" />
-    </svg>
   )
 }
 

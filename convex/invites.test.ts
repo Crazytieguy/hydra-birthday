@@ -64,7 +64,7 @@ describe('claiming an invite', () => {
     expect(await peek(t, token)).toEqual({
       status: 'available',
       kind: 'new',
-      label: 'Alice',
+      name: 'Alice',
       viewer: null,
     })
 
@@ -352,7 +352,7 @@ describe('admin gating', () => {
     const gracie = (await me(t, await claim(t, minted[0].token, 'Gracie')))!
     const listed = await listInvites(t, adminToken)
     expect(listed.find((i) => i.label === 'Grace')).toMatchObject({
-      claimedByUserId: gracie._id,
+      forUserId: gracie._id,
       kind: 'new',
       grantsAdmin: false,
     })
@@ -374,7 +374,7 @@ describe('admin gating', () => {
     expect(
       (await listInvites(t, adminToken)).find((i) => i.label === 'Grace'),
     ).toMatchObject({
-      claimedByUserId: gracie._id,
+      forUserId: gracie._id,
       revokedAt: expect.any(Number),
     })
   })
@@ -444,7 +444,7 @@ describe('admin gating', () => {
     expect(await peek(t, fresh)).toEqual({
       status: 'available',
       kind: 'new',
-      label: 'Rita',
+      name: 'Rita',
       viewer: null,
     })
     const listed = await listInvites(t, adminToken)
