@@ -74,7 +74,6 @@ export type Extra = {
 
 // Things that aren't on the board at all.
 export const extras: Array<Extra> = [
-  { day: 'sat', start: 13, len: 0.5, kind: 'frame', frameLabel: 'Arrival' },
   // Open slots: the last votes decide what goes there.
   ...[
     ['sat', 20, 4],
