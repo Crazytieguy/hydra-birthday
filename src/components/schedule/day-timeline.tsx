@@ -225,7 +225,7 @@ const blockClass = (entry: Entry) =>
     'font-display text-foreground hover:text-primary absolute cursor-pointer overflow-hidden rounded-[4px] border text-left font-bold transition-[color,background-color,border-color,box-shadow] hover:shadow-[0_1px_2px_rgba(0,0,0,0.1)] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:shadow-none',
     voted(entry)
       ? 'bg-vote-fill border-vote-line hover:border-primary/70 active:border-primary/70'
-      : 'bg-card border-input hover:bg-accent hover:border-muted-foreground active:bg-accent active:border-muted-foreground',
+      : 'bg-card border-block-line hover:bg-accent hover:border-muted-foreground active:bg-accent active:border-muted-foreground',
     // An open slot ("?") is a promise, not an activity: a big question mark
     // on a soft wash, dashed.
     isOpenSlot(entry) &&
