@@ -21,7 +21,7 @@ export const frameLabels: Partial<Record<string, string>> = {
 // changed. Keyed by the board (prod) title.
 export const titleRenames: Partial<Record<string, string>> = {
   'Libi DJ Set Fusion Dance': "Libi's DJ set",
-  'Osho Kundalini or whirling meditation': 'Osho meditation',
+  'Osho Kundalini or whirling meditation': 'Osho active meditation',
   'REAL Jam Session (+ improvisation lesson)': 'REAL Jam Session',
   'At least moderately spicy authentic relating games':
     'Spicy authentic relating games',
