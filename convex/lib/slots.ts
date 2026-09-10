@@ -54,7 +54,3 @@ export const enabledHourKeys = () =>
 // Soft cap only: copy asks guests to aim for this many strong votes and the
 // UI warns past it; nothing ever blocks.
 export const STRONG_VOTE_TARGET = 4
-
-// Guests can edit votes and availability until this (shown in copy; nothing
-// enforces it — the organizers just start scheduling).
-export const EDIT_DEADLINE_LABEL = 'Tuesday Sep 8'

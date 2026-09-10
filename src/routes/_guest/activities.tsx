@@ -1,10 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import {
-  EDIT_DEADLINE_LABEL,
-  STRONG_VOTE_TARGET,
-} from '../../../convex/lib/slots'
+import { STRONG_VOTE_TARGET } from '../../../convex/lib/slots'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { HEART, HeartVote, nextVote } from '@/components/heart-vote'
@@ -176,8 +173,8 @@ function SessionsPage() {
           </Button>
         ) : (
           <p className="text-muted-foreground text-sm">
-            Votes are in. You can keep changing them until {EDIT_DEADLINE_LABEL}
-            .
+            Votes are in. They stay open, and the unplaced activities with the
+            most votes get added to the schedule.
           </p>
         )}
         <ErrorText message={confirm.error} />

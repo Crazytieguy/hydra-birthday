@@ -1,23 +1,6 @@
-import { useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { CopyButton } from '@/components/copy-button'
-import { ErrorText } from '@/components/screens'
-import {
-  sessionQueryOptions,
-  useMe,
-  useSessionAction,
-  useSessionQuery,
-} from '@/lib/guest'
-import { inviteUrl } from '@/lib/invites'
+import { sessionQueryOptions, useMe, useSessionQuery } from '@/lib/guest'
 
 export const Route = createFileRoute('/_guest/')({
   loader: async ({ context }) => {
@@ -29,6 +12,9 @@ export const Route = createFileRoute('/_guest/')({
       context.queryClient.ensureQueryData(
         sessionQueryOptions(api.availability.mine, {}, sessionToken),
       ),
+      context.queryClient.ensureQueryData(
+        sessionQueryOptions(api.food.list, {}, sessionToken),
+      ),
     ])
   },
   component: Home,
@@ -38,6 +24,7 @@ function Home() {
   const me = useMe()
   const { data: sessionData } = useSessionQuery(api.partySessions.list, {})
   const { data: mine } = useSessionQuery(api.availability.mine, {})
+  const { data: food } = useSessionQuery(api.food.list, {})
 
   const voteCount = sessionData.sessions.filter((s) => s.myVote !== null).length
   const doneVoting = sessionData.votesConfirmedAt !== null
@@ -52,9 +39,8 @@ function Home() {
           <p>Thanks!</p>
         ) : (
           <p>
-            Help us plan by telling us which activities you like and when you're
-            available, we'll crunch the data and post a final schedule by Wed
-            Sep 9th!
+            Tell us which activities you like and when you're around, and we'll
+            keep shaping the weekend from that.
           </p>
         )}
         <p className="text-sm">
@@ -68,6 +54,22 @@ function Home() {
           </a>
         </p>
       </div>
+
+      <Link
+        to="/schedule"
+        className="border-primary bg-primary/8 hover:bg-primary/12 flex items-center gap-4 rounded-xl border px-4 py-4 transition-colors"
+      >
+        <CalendarGlyph />
+        <div className="min-w-0 flex-grow">
+          <h2 className="font-display text-primary text-lg font-bold">
+            Tentative schedule
+          </h2>
+          <p className="text-sm">
+            What's on, and when. More gets added as votes come in.
+          </p>
+        </div>
+        <span className="text-primary">→</span>
+      </Link>
 
       {/* Rows touch: each one's top padding owns the space below the
           previous divider, so the hover fill reaches it. */}
@@ -109,15 +111,45 @@ function Home() {
                 : 'locked'
           }
         />
+        <Step
+          number={4}
+          title="Bring food?"
+          detail={
+            food.myCount === 0
+              ? 'Offer a vegan dish for one of the meals. Optional.'
+              : `You're bringing ${food.myCount} dish${food.myCount === 1 ? '' : 'es'}.`
+          }
+          to="/food"
+          state={food.myCount > 0 ? 'done' : 'current'}
+        />
       </div>
-
-      <DeviceLinkCard />
     </div>
   )
 }
 
+function CalendarGlyph() {
+  return (
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className="text-primary shrink-0"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  )
+}
+
 // One row of the guided flow: votes first, hours locked until Done voting;
-// after that both steps stay freely navigable, just marked done.
+// after that both steps stay freely navigable, just marked done. Food is
+// never locked.
 function Step({
   number,
   title,
@@ -130,7 +162,7 @@ function Step({
   title: string
   detail: string
   lockedDetail?: string
-  to: '/activities' | '/availability' | '/propose'
+  to: '/activities' | '/availability' | '/propose' | '/food'
   state: 'done' | 'current' | 'locked'
 }) {
   const detailText = state === 'locked' ? (lockedDetail ?? detail) : detail
@@ -162,46 +194,5 @@ function Step({
     <Link to={to} className="border-border hover:bg-accent/40 block border-b">
       {body}
     </Link>
-  )
-}
-
-function DeviceLinkCard() {
-  const createForSelf = useSessionAction(api.invites.createForSelf)
-  const [link, setLink] = useState<string | null>(null)
-
-  async function create() {
-    const minted = await createForSelf.run({})
-    if (minted) setLink(inviteUrl(minted.token))
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Use another device</CardTitle>
-        <CardDescription>
-          Make a one-time link that signs another phone or laptop into this same
-          account.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {link ? (
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-md bg-muted px-2 py-1 text-xs">
-              {link}
-            </code>
-            <CopyButton text={link} />
-          </div>
-        ) : (
-          <Button
-            variant="secondary"
-            disabled={createForSelf.busy}
-            onClick={() => void create()}
-          >
-            Create link
-          </Button>
-        )}
-        <ErrorText message={createForSelf.error} />
-      </CardContent>
-    </Card>
   )
 }

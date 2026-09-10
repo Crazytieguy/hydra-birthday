@@ -1,11 +1,7 @@
 import { useRef, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { api } from '../../../convex/_generated/api'
-import {
-  EDIT_DEADLINE_LABEL,
-  enabledDays,
-  hourKey,
-} from '../../../convex/lib/slots'
+import { enabledDays, hourKey } from '../../../convex/lib/slots'
 import { Button } from '@/components/ui/button'
 import { ErrorText, StepHeader } from '@/components/screens'
 import {
@@ -195,7 +191,7 @@ function AvailabilityPage() {
       <div className="space-y-2">
         {confirmed ? (
           <p className="text-muted-foreground text-sm">
-            Confirmed. You can keep editing until {EDIT_DEADLINE_LABEL}.
+            Confirmed. You can keep editing as plans change.
           </p>
         ) : (
           <Button
