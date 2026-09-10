@@ -69,5 +69,13 @@ export type Extra = {
 // Things that aren't on the board at all.
 export const extras: Array<Extra> = [
   { day: 'sat', start: 13, len: 0.5, kind: 'frame', frameLabel: 'Arrival' },
-  { day: 'sun', start: 11, len: 0.5, kind: 'activity', title: 'Yoga' },
+  // Sunday morning is open on purpose: the last votes decide what goes there.
+  {
+    day: 'sun',
+    start: 10,
+    len: 3,
+    kind: 'activity',
+    title: '?',
+    note: 'Nothing is placed here yet. The last votes decide what goes in.',
+  },
 ]
