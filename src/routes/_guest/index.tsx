@@ -39,8 +39,8 @@ function Home() {
           <p>Thanks!</p>
         ) : (
           <p>
-            Vote on activities and tell us when you're around. The schedule
-            gets built from that.
+            Vote on activities and tell us when you're around. The schedule gets
+            built from that.
           </p>
         )}
         <p className="text-sm">
