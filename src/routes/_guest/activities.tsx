@@ -173,8 +173,8 @@ function SessionsPage() {
           </Button>
         ) : (
           <p className="text-muted-foreground text-sm">
-            Votes are in. They stay open, and the unplaced activities with the
-            most votes get added to the schedule.
+            You can keep voting, and we might add new activities to the
+            schedule.
           </p>
         )}
         <ErrorText message={confirm.error} />
