@@ -77,14 +77,15 @@ export const extras: Array<Extra> = [
   { day: 'sat', start: 13, len: 0.5, kind: 'frame', frameLabel: 'Arrival' },
   // Open slots: the last votes decide what goes there.
   ...[
-    [10, 3],
-    [13, 2],
-    [15, 3],
-    [20, 2],
-  ].map(([start, len]): Extra => ({
-    day: 'sun',
-    start,
-    len,
+    ['sat', 20, 4],
+    ['sun', 10, 3],
+    ['sun', 13, 2],
+    ['sun', 15, 3],
+    ['sun', 20, 2],
+  ].map(([day, start, len]): Extra => ({
+    day: day as string,
+    start: start as number,
+    len: len as number,
     kind: 'activity',
     title: '?',
     note: 'Nothing is placed here yet. The last votes decide what goes in.',
