@@ -119,6 +119,7 @@ export default defineSchema({
   foodOffers: defineTable({
     userId: v.id('users'),
     meal: v.union(
+      v.literal('sat-brunch'),
       v.literal('sat-dinner'),
       v.literal('sun-brunch'),
       v.literal('sun-dinner'),

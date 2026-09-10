@@ -14,6 +14,7 @@ import type { Doc, Id } from './_generated/dataModel'
 const OFFERS_CAP = 1000
 
 const mealValidator = v.union(
+  v.literal('sat-brunch'),
   v.literal('sat-dinner'),
   v.literal('sun-brunch'),
   v.literal('sun-dinner'),

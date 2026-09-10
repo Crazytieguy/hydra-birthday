@@ -124,7 +124,7 @@ function OfferForm({
   editing: Offer | null
   onDone: () => void
 }) {
-  const [meal, setMeal] = useState<MealKey>(editing?.meal ?? 'sat-dinner')
+  const [meal, setMeal] = useState<MealKey>(editing?.meal ?? 'sat-brunch')
   const [dish, setDish] = useState(editing?.dish ?? '')
   const [feeds, setFeeds] = useState(editing ? String(editing.feeds) : '')
   const offer = useSessionAction(api.food.offer)

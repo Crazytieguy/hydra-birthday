@@ -33,7 +33,7 @@ describe('food offers', () => {
 
     const forAlice = await t.query(api.food.list, { sessionToken: alice })
     expect(forAlice.myCount).toBe(1)
-    expect(forAlice.meals[0].offers).toEqual([
+    expect(forAlice.meals.find((m) => m.key === 'sat-dinner')!.offers).toEqual([
       expect.objectContaining({
         name: 'Alice',
         dish: 'Lentil stew',
@@ -43,7 +43,9 @@ describe('food offers', () => {
     ])
     const forBob = await t.query(api.food.list, { sessionToken: bob })
     expect(forBob.myCount).toBe(0)
-    expect(forBob.meals[0].offers[0]).toMatchObject({ mine: false })
+    expect(
+      forBob.meals.find((m) => m.key === 'sat-dinner')!.offers[0],
+    ).toMatchObject({ mine: false })
   })
 
   test('only the owner can edit or remove an offer', async () => {
@@ -74,8 +76,10 @@ describe('food offers', () => {
       feeds: 4,
     })
     const listed = await t.query(api.food.list, { sessionToken: alice })
-    expect(listed.meals[0].offers).toEqual([])
-    expect(listed.meals[1].offers[0]).toMatchObject({
+    expect(listed.meals.find((m) => m.key === 'sat-dinner')!.offers).toEqual([])
+    expect(
+      listed.meals.find((m) => m.key === 'sun-brunch')!.offers[0],
+    ).toMatchObject({
       dish: 'Banana bread',
       feeds: 4,
     })
@@ -115,8 +119,12 @@ describe('food offers', () => {
       feeds: 4,
     })
     const meals = await t.query(api.food.all, { sessionToken: admin })
-    expect(meals[0]).toMatchObject({ key: 'sat-dinner', totalFeeds: 12 })
-    expect(meals[0].offers.map((o) => o.name).sort()).toEqual(['Alice', 'Yoav'])
+    const satDinner = meals.find((m) => m.key === 'sat-dinner')!
+    expect(satDinner).toMatchObject({ key: 'sat-dinner', totalFeeds: 12 })
+    expect(satDinner.offers.map((o) => o.name).sort()).toEqual([
+      'Alice',
+      'Yoav',
+    ])
     await expect(
       t.query(api.food.all, { sessionToken: alice }),
     ).rejects.toEqual(failsWith('FORBIDDEN'))
