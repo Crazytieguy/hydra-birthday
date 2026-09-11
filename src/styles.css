@@ -128,13 +128,17 @@
     --accent-foreground: #ece7d8;
     --destructive: oklch(0.704 0.191 22.216);
     --border: #3b382c;
-    --vote-fill: #3a2631;
+    --vote-fill: #472335;
     --vote-line: #8a4f66;
-    --frame-fill: #3c3726;
-    --slot-fill: rgba(58, 38, 49, 0.35);
+    --frame-fill: #383321;
+    /* On dark ground the light tints go grey, so these carry about twice the
+       chroma of their light counterparts: enough that sky and mint read as
+       two colours side by side, and the open "?" wash stays plum over the
+       olive bands instead of mixing to brown. */
+    --slot-fill: rgba(120, 56, 88, 0.35);
     --ink-dim: #b3ac97;
-    --wash-1: #2b383c;
-    --wash-2: #2c3933;
+    --wash-1: #1b404d;
+    --wash-2: #214233;
     --input: #4a4635;
     --ring: #ee7ba3;
     --chart-1: oklch(0.87 0 0);
