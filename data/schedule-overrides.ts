@@ -62,6 +62,11 @@ export const placementOverrides: Partial<Record<string, PlacementOverride>> = {
   },
   // Hot seat is continuous and come-and-go.
   '7ca8na': { ribbon: true, note: 'Come and go whenever you like.' },
+  // Sunday afternoon in bedroom 1 is one loose block; the three board
+  // placements fold into the extra below.
+  pgnbwo: { drop: true },
+  wii1ml: { drop: true },
+  vzlil6: { drop: true },
 }
 
 // A title-only activity that isn't on the board at all (hours from
@@ -79,16 +84,22 @@ export type Extra = {
 const openSlots: Array<[day: string, start: number, len: number]> = [
   ['sat', 20, 4],
   ['sun', 10, 3],
-  ['sun', 13, 2],
-  ['sun', 15, 3],
-  ['sun', 20, 2],
 ]
 
-export const extras: Array<Extra> = openSlots.map(([day, start, len]) => ({
-  day,
-  start,
-  len,
-  title: '?',
-  open: true,
-  note: 'Nothing is placed here yet. The last votes decide what goes in.',
-}))
+export const extras: Array<Extra> = [
+  ...openSlots.map(([day, start, len]) => ({
+    day,
+    start,
+    len,
+    title: '?',
+    open: true,
+    note: 'Nothing is placed here yet. The last votes decide what goes in.',
+  })),
+  {
+    day: 'sun',
+    start: 15,
+    len: 3,
+    title: 'Misc. (sock wrestling, hair braiding, forehead kisses)',
+    note: 'Exact order and durations decided spontaneously',
+  },
+]
